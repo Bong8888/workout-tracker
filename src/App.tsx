@@ -6,9 +6,13 @@ import CyclesPage from './features/cycles/CyclesPage';
 import ExercisesPage from './features/exercises/ExercisesPage';
 import StatsPage from './features/stats/StatsPage';
 import MePage from './features/me/MePage';
+import { seedIfEmpty } from './db/seed';
 
 function App() {
   useEffect(() => {
+    // Seed default database settings if empty
+    seedIfEmpty().catch(console.error);
+
     // Initialize dark mode based on system preference
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const handleChange = (e: MediaQueryListEvent | MediaQueryList) => {
