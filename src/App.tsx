@@ -4,6 +4,8 @@ import BottomNav from './components/BottomNav';
 import TodayPage from './features/today/TodayPage';
 import CyclesPage from './features/cycles/CyclesPage';
 import ExercisesPage from './features/exercises/ExercisesPage';
+import ExerciseDetailPage from './features/exercises/ExerciseDetailPage';
+import ExerciseForm from './features/exercises/ExerciseForm';
 import StatsPage from './features/stats/StatsPage';
 import MePage from './features/me/MePage';
 import { seedIfEmpty } from './db/seed';
@@ -39,6 +41,9 @@ function App() {
             <Route path="/" element={<TodayPage />} />
             <Route path="/cycles" element={<CyclesPage />} />
             <Route path="/exercises" element={<ExercisesPage />} />
+            <Route path="/exercises/new" element={<ExerciseForm />} />
+            <Route path="/exercises/:id" element={<ExerciseDetailPage />} />
+            <Route path="/exercises/:id/edit" element={<ExerciseForm />} />
             <Route path="/stats" element={<StatsPage />} />
             <Route path="/me" element={<MePage />} />
           </Routes>

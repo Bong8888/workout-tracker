@@ -1,11 +1,19 @@
 import { db } from './index';
 import type { AppSettings } from './types';
+import exercisesData from '../data/exercises.json';
 
 /**
- * Seeds default settings into the database if the database is currently empty.
- * Exercises seeding is deferred to Phase 3.
+ * Seeds default settings and exercise library into the database if empty.
  */
 export async function seedIfEmpty() {
+  // 1. Seed exercises if empty
+  const exerciseCount = await db.exercises.count();
+  if (exerciseCount === 0) {
+    await db.exercises.bulkAdd(exercisesData as any);
+    console.log(`Database initialized: Seeded ${exercisesData.length} exercises.`);
+  }
+
+  // 2. Seed settings if empty
   const existingSettings = await db.settings.get('singleton');
   if (!existingSettings) {
     const defaultSettings: AppSettings = {
