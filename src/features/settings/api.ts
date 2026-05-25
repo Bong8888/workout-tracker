@@ -192,3 +192,22 @@ export async function getAppStats(): Promise<AppStats> {
     totalVolumeKg,
   };
 }
+
+export async function syncDataToSheets(): Promise<void> {
+  const payload = {
+    sessions: await db.sessions.toArray(),
+    sets: await db.sets.toArray(),
+    bodyMetrics: await db.bodyMetrics.toArray(),
+    activities: await db.activityLogs.toArray(),
+    cycles: await db.trainingCycles.toArray(),
+  };
+
+  await fetch('https://script.google.com/macros/s/AKfycbw2Seq-0gyI6jlygv0tC1gRoYnIiYH-qEXhh7iiUPvqU9LFdBboYVDOJhZewFMPta2y/exec', {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}

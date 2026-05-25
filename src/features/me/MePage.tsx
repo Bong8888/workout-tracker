@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   User, Plus, ChevronRight, Scale, Activity, CheckCircle2, AlertTriangle, Trash2,
   Settings, Database, Info, Download, Upload, RefreshCw, AlertCircle,
-  Sun, Moon, Monitor
+  Sun, Moon, Monitor, CloudUpload
 } from 'lucide-react';
 import { useBodyMetricsLive, createBodyMetric, deleteBodyMetric } from '../metrics/api';
 import { LineChart, Line, ResponsiveContainer } from 'recharts';
@@ -14,6 +14,7 @@ import {
   downloadExport,
   importData,
   getAppStats,
+  syncDataToSheets,
   type AppStats
 } from '../settings/api';
 import { seedIfEmpty } from '../../db/seed';
@@ -38,6 +39,8 @@ export default function MePage() {
   const [error, setError] = useState('');
   const [overwriteWarning, setOverwriteWarning] = useState(false);
   const [toast, setToast] = useState('');
+  const [toastType, setToastType] = useState<'success' | 'error'>('success');
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Import state
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -152,11 +155,29 @@ export default function MePage() {
   const handleExportData = async () => {
     try {
       await downloadExport();
+      setToastType('success');
       setToast('Tải xuống file sao lưu JSON thành công!');
       setTimeout(() => setToast(''), 2500);
     } catch (err) {
       console.error(err);
       alert('Đã xảy ra lỗi khi tải file sao lưu.');
+    }
+  };
+
+  const handleSyncSheets = async () => {
+    setIsSyncing(true);
+    try {
+      await syncDataToSheets();
+      setToastType('success');
+      setToast('Đồng bộ dữ liệu Google Sheets thành công!');
+      setTimeout(() => setToast(''), 3000);
+    } catch (err) {
+      console.error(err);
+      setToastType('error');
+      setToast('Đồng bộ thất bại. Vui lòng kiểm tra lại kết nối!');
+      setTimeout(() => setToast(''), 3000);
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -238,8 +259,14 @@ export default function MePage() {
     <div className="p-4 space-y-6 flex flex-col min-h-screen pb-24 bg-slate-50 dark:bg-slate-950">
       {/* Toast Notification */}
       {toast && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-emerald-600 text-white px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-2 animate-fade-in font-semibold text-xs text-center max-w-xs">
-          <CheckCircle2 className="w-5 h-5 shrink-0" />
+        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 text-white px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-2 animate-fade-in font-semibold text-xs text-center max-w-xs ${
+          toastType === 'error' ? 'bg-red-655' : 'bg-emerald-600'
+        }`}>
+          {toastType === 'error' ? (
+            <AlertCircle className="w-5 h-5 shrink-0" />
+          ) : (
+            <CheckCircle2 className="w-5 h-5 shrink-0" />
+          )}
           <span>{toast}</span>
         </div>
       )}
@@ -776,6 +803,19 @@ export default function MePage() {
         </h3>
 
         <div className="grid grid-cols-2 gap-3 text-xs">
+          <button
+            onClick={handleSyncSheets}
+            disabled={isSyncing}
+            className="p-3 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/20 text-emerald-750 dark:text-emerald-400 font-extrabold rounded-2xl border border-emerald-100 dark:border-emerald-900/30 flex flex-col items-center justify-center gap-1.5 transition-all text-center col-span-2 disabled:opacity-50"
+          >
+            {isSyncing ? (
+              <RefreshCw className="w-5 h-5 animate-spin" />
+            ) : (
+              <CloudUpload className="w-5 h-5" />
+            )}
+            <span>{isSyncing ? 'Đang đồng bộ...' : 'Sync to Google Sheets'}</span>
+          </button>
+
           <button
             onClick={handleExportData}
             className="p-3 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/20 text-purple-750 dark:text-purple-400 font-extrabold rounded-2xl border border-purple-100 dark:border-purple-900/30 flex flex-col items-center justify-center gap-1.5 transition-all text-center"
