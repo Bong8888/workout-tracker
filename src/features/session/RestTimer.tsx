@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Play, Pause, X, RotateCcw, Plus, HelpCircle, Activity } from 'lucide-react';
 import { useTimer } from '../../hooks/useTimer';
 import { HAPTIC } from '../../hooks/useHaptic';
+import { db } from '../../db';
 
 interface RestTimerProps {
   duration: number; // rest seconds, e.g. 90
@@ -11,6 +12,14 @@ interface RestTimerProps {
 export default function RestTimer({ duration, onClose }: RestTimerProps) {
   const [timerMode, setTimerMode] = useState<'countdown' | 'stopwatch'>('countdown');
   const [initialSeconds, setInitialSeconds] = useState(duration);
+
+  useEffect(() => {
+    db.settings.get('singleton').then(settings => {
+      if (settings && settings.default_rest_timer_mode) {
+        setTimerMode(settings.default_rest_timer_mode);
+      }
+    });
+  }, []);
 
   // play synthesized beep
   const playBeep = () => {

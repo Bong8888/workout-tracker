@@ -49,6 +49,9 @@ export default function ExerciseSessionDetail({
   const [addedWeightInput, setAddedWeightInput] = useState('');
   const [timeInput, setTimeInput] = useState('');
 
+  // Workout timer mode state
+  const [workoutTimerMode, setWorkoutTimerMode] = useState<'stopwatch' | 'countdown'>('stopwatch');
+
   // Rest Timer overlay state
   const [showRestTimer, setShowRestTimer] = useState(false);
   const [defaultRestSecs, setDefaultRestSecs] = useState(90);
@@ -57,9 +60,10 @@ export default function ExerciseSessionDetail({
   const [showWarningModal, setShowWarningModal] = useState(false);
   const [newPRToast, setNewPRToast] = useState<string | null>(null);
 
-  // Time-based set timer hook (stopwatch)
+  // Time-based set timer hook
   const setTimer = useTimer({
-    mode: 'stopwatch',
+    mode: workoutTimerMode,
+    initialSeconds: targetTimeSeconds || 60,
   });
 
   // Load configuration & defaults
@@ -73,7 +77,9 @@ export default function ExerciseSessionDetail({
     db.settings.get('singleton').then(settings => {
       if (settings) {
         setDefaultRestSecs(settings.default_rest_seconds || 90);
-        // If settings has default_bodyweight_kg and no bodyMetrics exist, it is used
+        if (settings.default_workout_timer_mode) {
+          setWorkoutTimerMode(settings.default_workout_timer_mode);
+        }
       }
     });
 
@@ -159,7 +165,23 @@ export default function ExerciseSessionDetail({
     const actualReps = exercise.measurement_type === 'reps' ? (parseInt(repsInput) || 10) : undefined;
     const actualWeight = (!exercise.is_bodyweight && exercise.measurement_type === 'reps') ? (parseFloat(weightInput) || 0) : undefined;
     const actualAddedWeight = (exercise.is_bodyweight && exercise.measurement_type === 'reps') ? (parseFloat(addedWeightInput) || 0) : undefined;
-    const actualTimeSeconds = exercise.measurement_type === 'time' ? (parseInt(timeInput) || 60) : undefined;
+
+    let actualTimeSeconds: number | undefined;
+    if (exercise.measurement_type === 'time') {
+      const parsedTime = parseInt(timeInput);
+      if (!isNaN(parsedTime) && parsedTime > 0) {
+        actualTimeSeconds = parsedTime;
+      } else if (setTimer.seconds > 0) {
+        if (workoutTimerMode === 'stopwatch') {
+          actualTimeSeconds = setTimer.seconds;
+        } else {
+          const target = targetTimeSeconds ?? 60;
+          actualTimeSeconds = Math.max(1, target - setTimer.seconds);
+        }
+      } else {
+        actualTimeSeconds = targetTimeSeconds ?? 60;
+      }
+    }
 
     const data = {
       session_exercise_id: sessionExercise.id,

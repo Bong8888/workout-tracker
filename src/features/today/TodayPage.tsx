@@ -4,6 +4,8 @@ import { Dumbbell, Calendar, Coffee, Play, PlusCircle, Sparkles, Activity, Check
 import { useTodayCycleDay } from '../cycles/api';
 import { useActiveSessionLive } from '../session/api';
 import { useTodayActivitiesLive, createActivity, deleteActivity } from '../activities/api';
+import BackupReminder from '../../components/BackupReminder';
+import InstallPrompt from '../../components/InstallPrompt';
 
 export default function TodayPage() {
   const navigate = useNavigate();
@@ -113,6 +115,11 @@ export default function TodayPage() {
           />
         )}
 
+        <div className="p-4 pb-0 max-w-sm mx-auto w-full">
+          <InstallPrompt />
+          <BackupReminder />
+        </div>
+
         <div className="flex flex-col items-center justify-center p-6 text-center pt-10">
           <div className="p-4 bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 rounded-full mb-4 shadow-sm">
             {activeSession ? (
@@ -197,6 +204,11 @@ export default function TodayPage() {
             onSave={handleSaveActivity}
           />
         )}
+
+        <div className="p-4 pb-0 max-w-sm mx-auto w-full">
+          <InstallPrompt />
+          <BackupReminder />
+        </div>
 
         <div className="p-4 flex flex-col justify-center pt-8">
           <div className="text-center max-w-sm mx-auto space-y-4">
@@ -296,6 +308,9 @@ export default function TodayPage() {
           onSave={handleSaveActivity}
         />
       )}
+
+      <InstallPrompt />
+      <BackupReminder />
 
       {/* Today Suggestion Card */}
       <div className="bg-gradient-to-r from-primary-650 to-indigo-650 text-white rounded-3xl p-5 shadow-lg relative overflow-hidden mb-6 mt-2">

@@ -14,27 +14,42 @@ import SessionPage from './features/session/SessionPage';
 import SessionSummary from './features/session/SessionSummary';
 import { seedIfEmpty } from './db/seed';
 
+import { useLiveQuery } from 'dexie-react-hooks';
+import { db } from './db';
+
 function App() {
+  const settings = useLiveQuery(() => db.settings.get('singleton'));
+
   useEffect(() => {
     // Seed default database settings if empty
     seedIfEmpty().catch(console.error);
+  }, []);
 
-    // Initialize dark mode based on system preference
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const handleChange = (e: MediaQueryListEvent | MediaQueryList) => {
-      // Only set from system settings if the user hasn't explicitly set it
-      // (For now, we just sync with system preference)
-      if (e.matches) {
-        document.documentElement.classList.add('dark');
+  useEffect(() => {
+    if (!settings) return;
+
+    const applyTheme = (theme: 'light' | 'dark' | 'system') => {
+      const root = document.documentElement;
+      if (theme === 'system') {
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        root.classList.toggle('dark', prefersDark);
       } else {
-        document.documentElement.classList.remove('dark');
+        root.classList.toggle('dark', theme === 'dark');
       }
     };
-    
-    handleChange(mediaQuery);
-    mediaQuery.addEventListener('change', handleChange);
-    return () => mediaQuery.removeEventListener('change', handleChange);
-  }, []);
+
+    applyTheme(settings.theme);
+
+    // Sync system changes if using 'system' theme
+    if (settings.theme === 'system') {
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      const handleChange = (e: MediaQueryListEvent) => {
+        document.documentElement.classList.toggle('dark', e.matches);
+      };
+      mediaQuery.addEventListener('change', handleChange);
+      return () => mediaQuery.removeEventListener('change', handleChange);
+    }
+  }, [settings]);
 
   return (
     <Router>
