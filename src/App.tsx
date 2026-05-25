@@ -3,6 +3,8 @@ import { useEffect } from 'react';
 import BottomNav from './components/BottomNav';
 import TodayPage from './features/today/TodayPage';
 import CyclesPage from './features/cycles/CyclesPage';
+import CycleDetailPage from './features/cycles/CycleDetailPage';
+import CycleForm from './features/cycles/CycleForm';
 import ExercisesPage from './features/exercises/ExercisesPage';
 import ExerciseDetailPage from './features/exercises/ExerciseDetailPage';
 import ExerciseForm from './features/exercises/ExerciseForm';
@@ -40,6 +42,9 @@ function App() {
           <Routes>
             <Route path="/" element={<TodayPage />} />
             <Route path="/cycles" element={<CyclesPage />} />
+            <Route path="/cycles/new" element={<CycleForm />} />
+            <Route path="/cycles/:id" element={<CycleDetailPage />} />
+            <Route path="/cycles/:id/edit" element={<CycleForm />} />
             <Route path="/exercises" element={<ExercisesPage />} />
             <Route path="/exercises/new" element={<ExerciseForm />} />
             <Route path="/exercises/:id" element={<ExerciseDetailPage />} />

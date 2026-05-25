@@ -1,7 +1,20 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { Dumbbell, Repeat, BookOpen, BarChart3, User } from 'lucide-react';
 
 export default function BottomNav() {
+  const location = useLocation();
+
+  // Hide bottom navigation on form/wizard routes to give them full-screen focus
+  const hideOnRoutes = [
+    /^\/cycles\/new\/?$/,
+    /^\/cycles\/[^/]+\/edit\/?$/,
+    /^\/exercises\/new\/?$/,
+    /^\/exercises\/[^/]+\/edit\/?$/
+  ];
+
+  const shouldHide = hideOnRoutes.some(regex => regex.test(location.pathname));
+  if (shouldHide) return null;
+
   const navItems = [
     { to: '/', label: 'Hôm nay', icon: Dumbbell },
     { to: '/cycles', label: 'Lịch tập', icon: Repeat },
@@ -33,3 +46,4 @@ export default function BottomNav() {
     </nav>
   );
 }
+
