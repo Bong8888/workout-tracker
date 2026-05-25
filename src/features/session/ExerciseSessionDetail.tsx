@@ -319,8 +319,13 @@ export default function ExerciseSessionDetail({
       {/* Header Viewport */}
       <div className="flex items-center gap-2 p-4 bg-white dark:bg-slate-900 border-b dark:border-slate-800 shadow-sm">
         <button
-          onClick={onClose}
-          className="p-2 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onClose();
+          }}
+          className="p-2 text-slate-500 hover:text-slate-850 dark:hover:text-slate-100 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
         >
           <ArrowLeft className="w-5 h-5" />
         </button>
@@ -546,7 +551,12 @@ export default function ExerciseSessionDetail({
       <div className="fixed bottom-0 left-0 right-0 z-40 p-4 bg-white/95 dark:bg-slate-900/95 border-t dark:border-slate-800 shadow-lg">
         <div className="max-w-md mx-auto flex gap-3">
           <button
-            onClick={onClose}
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onClose();
+            }}
             className="flex-1 py-3 px-4 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-350 font-bold rounded-xl text-xs"
           >
             Quay lại danh sách
