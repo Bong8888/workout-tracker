@@ -10,6 +10,8 @@ export type MeasurementType = 'reps' | 'time' | 'distance';
 
 export type DayType = 'workout' | 'rest';
 
+export type GroupType = 'single' | 'superset' | 'triset' | 'circuit';
+
 // ============================================
 // 1. Exercises
 // ============================================
@@ -65,6 +67,8 @@ export interface CycleDayExercise {
   target_added_weight?: number;     // tạ thêm mục tiêu (kg) — cho bodyweight
   target_time_seconds?: number;     // cho time-based
   notes?: string;
+  group_id?: string;
+  group_type?: GroupType;
 }
 
 // ============================================
@@ -89,6 +93,8 @@ export interface SessionExercise {
   exercise_id: string;
   order: number;
   completed: boolean;
+  group_id?: string;
+  group_type?: GroupType;
 }
 
 // ============================================
@@ -106,6 +112,7 @@ export interface SetEntry {
   rest_duration_seconds?: number;
   completed: boolean;
   completed_at: string;             // ISO timestamp
+  round_number?: number;
 }
 
 // ============================================

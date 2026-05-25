@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
-import type { TrainingCycle, CycleDay, CycleDayExercise, Exercise } from '../../db/types';
+import type { TrainingCycle, CycleDay, CycleDayExercise, Exercise, GroupType } from '../../db/types';
 import { deleteCycle as deleteCycleHelper } from '../../db/helpers';
 import { getTodayDayOrder } from '../../utils/cycleDate';
 
@@ -38,6 +38,8 @@ export async function createCycle(data: {
       target_added_weight?: number;
       target_time_seconds?: number;
       notes?: string;
+      group_id?: string;
+      group_type?: GroupType;
     }>;
   }>;
 }): Promise<string> {
@@ -85,6 +87,8 @@ export async function createCycle(data: {
             target_added_weight: exData.target_added_weight,
             target_time_seconds: exData.target_time_seconds,
             notes: exData.notes,
+            group_id: exData.group_id,
+            group_type: exData.group_type,
           });
         }
       }
@@ -121,6 +125,8 @@ export async function updateCycle(
         target_added_weight?: number;
         target_time_seconds?: number;
         notes?: string;
+        group_id?: string;
+        group_type?: GroupType;
       }>;
     }>;
   }
@@ -168,6 +174,8 @@ export async function updateCycle(
             target_added_weight: exData.target_added_weight,
             target_time_seconds: exData.target_time_seconds,
             notes: exData.notes,
+            group_id: exData.group_id,
+            group_type: exData.group_type,
           });
         }
       }

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Edit2, Trash2, Check, AlertTriangle, Calendar, Star, PlayCircle } from 'lucide-react';
 import { useCycle, useCycleDays, useCycleDayExercises, activateCycle, deleteCycle } from './api';
 import type { CycleDay } from '../../db/types';
+import { groupExercises } from '../../utils/grouping';
 
 export default function CycleDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -256,25 +257,58 @@ function DayExerciseList({ day, idx }: { day: CycleDay; idx: number }) {
       </div>
 
       {day.day_type === 'workout' && (
-        <div className="space-y-1.5 pl-2.5 border-l border-slate-200 dark:border-slate-800 text-xs">
+        <div className="space-y-3 pl-1 border-l border-slate-200 dark:border-slate-800 text-xs">
           {exercises.length === 0 ? (
-            <p className="text-slate-400 italic text-[11px]">Chưa chọn bài tập cho ngày này.</p>
+            <p className="text-slate-400 italic text-[11px] pl-2">Chưa chọn bài tập cho ngày này.</p>
           ) : (
-            exercises.map((e, eIdx) => (
-              <div key={e.id} className="text-slate-650 dark:text-slate-350">
-                <span className="font-bold text-slate-500 mr-1">{eIdx + 1}.</span>
-                <span className="font-medium text-slate-800 dark:text-slate-200 mr-2">{e.exercise.name}</span>
-                <span className="text-slate-400">
-                  ({e.target_sets} sets ×{' '}
-                  {e.exercise.measurement_type === 'reps' ? `${e.target_reps} reps` : `${e.target_time_seconds}s`}
-                  {e.exercise.is_bodyweight 
-                    ? e.target_added_weight ? ` @ +${e.target_added_weight}kg` : ' @ Bodyweight'
-                    : ` @ ${e.target_weight}kg`
-                  })
-                </span>
-                {e.notes && <span className="block text-[10px] text-slate-400 italic mt-0.5 pl-4">Ghi chú: {e.notes}</span>}
-              </div>
-            ))
+            groupExercises(exercises).map((group, gIdx) => {
+              if (group.type === 'single') {
+                const e = group.exercises[0];
+                return (
+                  <div key={e.id} className="text-slate-650 dark:text-slate-350 pl-2">
+                    <span className="font-bold text-slate-500 mr-1">{gIdx + 1}.</span>
+                    <span className="font-medium text-slate-800 dark:text-slate-200 mr-2">{e.exercise.name}</span>
+                    <span className="text-slate-400">
+                      ({e.target_sets} sets ×{' '}
+                      {e.exercise.measurement_type === 'reps' ? `${e.target_reps} reps` : `${e.target_time_seconds}s`}
+                      {e.exercise.is_bodyweight 
+                        ? e.target_added_weight ? ` @ +${e.target_added_weight}kg` : ' @ Bodyweight'
+                        : ` @ ${e.target_weight}kg`
+                      })
+                    </span>
+                    {e.notes && <span className="block text-[10px] text-slate-450 italic mt-0.5 pl-4">Ghi chú: {e.notes}</span>}
+                  </div>
+                );
+              } else {
+                const groupLabel = group.type === 'superset' ? 'Superset' : group.type === 'triset' ? 'Tri-set' : 'Circuit';
+                return (
+                  <div key={group.id} className="border border-indigo-100 dark:border-indigo-900/40 bg-indigo-50/10 dark:bg-indigo-950/5 p-3 rounded-xl ml-2 space-y-1.5">
+                    <div className="flex items-center justify-between border-b dark:border-indigo-950 pb-1">
+                      <span className="text-[9px] uppercase tracking-wider font-extrabold text-indigo-750 dark:text-indigo-400">
+                        {groupLabel} ({group.exercises.length} bài)
+                      </span>
+                    </div>
+                    <div className="space-y-2 pl-2 border-l border-indigo-200 dark:border-indigo-850">
+                      {group.exercises.map((e, eIdx) => (
+                        <div key={e.id} className="text-slate-650 dark:text-slate-350">
+                          <span className="font-bold text-indigo-500 mr-1 text-[10px]">{String.fromCharCode(65 + eIdx)}.</span>
+                          <span className="font-medium text-slate-800 dark:text-slate-200 mr-2">{e.exercise.name}</span>
+                          <span className="text-slate-400">
+                            ({e.target_sets} sets ×{' '}
+                            {e.exercise.measurement_type === 'reps' ? `${e.target_reps} reps` : `${e.target_time_seconds}s`}
+                            {e.exercise.is_bodyweight 
+                              ? e.target_added_weight ? ` @ +${e.target_added_weight}kg` : ' @ Bodyweight'
+                              : ` @ ${e.target_weight}kg`
+                            })
+                          </span>
+                          {e.notes && <span className="block text-[10px] text-slate-450 italic mt-0.5 pl-4">Ghi chú: {e.notes}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              }
+            })
           )}
         </div>
       )}

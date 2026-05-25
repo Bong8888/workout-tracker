@@ -6,6 +6,7 @@ import { useActiveSessionLive } from '../session/api';
 import { useTodayActivitiesLive, createActivity, deleteActivity } from '../activities/api';
 import BackupReminder from '../../components/BackupReminder';
 import InstallPrompt from '../../components/InstallPrompt';
+import { groupExercises } from '../../utils/grouping';
 
 export default function TodayPage() {
   const navigate = useNavigate();
@@ -357,38 +358,90 @@ export default function TodayPage() {
             </button>
           </div>
         ) : (
-          exercises.map((e, idx) => (
-            <div
-              key={e.id}
-              onClick={() => navigate(`/exercises/${e.exercise_id}`)}
-              className="p-3 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-2xl shadow-sm flex items-center gap-3 cursor-pointer hover:border-primary-400 transition-colors animate-fade-in"
-            >
-              <span className="text-xs font-black text-slate-350 dark:text-slate-650 w-5 text-center">
-                {idx + 1}
-              </span>
-              
-              <div className="flex-1 min-w-0">
-                <h4 className="font-bold text-xs text-slate-800 dark:text-slate-150 truncate">
-                  {e.exercise.name}
-                </h4>
-                {e.exercise.name_vi && (
-                  <span className="text-[10px] text-slate-400 truncate block">
-                    {e.exercise.name_vi}
+          groupExercises(exercises).map((group, idx) => {
+            if (group.type === 'single') {
+              const e = group.exercises[0];
+              return (
+                <div
+                  key={e.id}
+                  onClick={() => navigate(`/exercises/${e.exercise_id}`)}
+                  className="p-3 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-2xl shadow-sm flex items-center gap-3 cursor-pointer hover:border-primary-400 transition-colors animate-fade-in"
+                >
+                  <span className="text-xs font-black text-slate-350 dark:text-slate-650 w-5 text-center">
+                    {idx + 1}
                   </span>
-                )}
-                
-                {/* Targets text */}
-                <span className="text-[10px] text-primary-600 dark:text-primary-400 font-bold mt-1.5 block">
-                  Target: {e.target_sets} sets ×{' '}
-                  {e.exercise.measurement_type === 'reps' ? `${e.target_reps} reps` : `${e.target_time_seconds}s`}
-                  {e.exercise.is_bodyweight 
-                    ? e.target_added_weight ? ` @ +${e.target_added_weight}kg` : ' @ Bodyweight'
-                    : ` @ ${e.target_weight}kg`
-                  }
-                </span>
-              </div>
-            </div>
-          ))
+                  
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-bold text-xs text-slate-800 dark:text-slate-150 truncate">
+                      {e.exercise.name}
+                    </h4>
+                    {e.exercise.name_vi && (
+                      <span className="text-[10px] text-slate-400 truncate block">
+                        {e.exercise.name_vi}
+                      </span>
+                    )}
+                    
+                    {/* Targets text */}
+                    <span className="text-[10px] text-primary-600 dark:text-primary-400 font-bold mt-1.5 block">
+                      Target: {e.target_sets} sets ×{' '}
+                      {e.exercise.measurement_type === 'reps' ? `${e.target_reps} reps` : `${e.target_time_seconds}s`}
+                      {e.exercise.is_bodyweight 
+                        ? e.target_added_weight ? ` @ +${e.target_added_weight}kg` : ' @ Bodyweight'
+                        : ` @ ${e.target_weight}kg`
+                      }
+                    </span>
+                  </div>
+                </div>
+              );
+            } else {
+              const groupLabel = group.type === 'superset' ? 'Superset' : group.type === 'triset' ? 'Tri-set' : 'Circuit';
+              return (
+                <div 
+                  key={group.id}
+                  className="bg-white dark:bg-slate-900 border border-indigo-150 dark:border-indigo-900/40 rounded-2xl shadow-sm p-3.5 space-y-2.5 animate-fade-in cursor-pointer"
+                >
+                  <div className="flex items-center gap-1.5 border-b dark:border-indigo-950 pb-1.5">
+                    <span className="text-[9px] uppercase tracking-wider font-extrabold text-indigo-650 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-2 py-0.5 rounded border border-indigo-100 dark:border-indigo-900/30">
+                      {groupLabel}
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-bold">
+                      {group.exercises.length} bài tập liên tiếp
+                    </span>
+                  </div>
+
+                  <div className="space-y-2 pl-2 border-l border-indigo-200 dark:border-indigo-850">
+                    {group.exercises.map((e, eIdx) => (
+                      <div
+                        key={e.id}
+                        onClick={(evt) => {
+                          evt.stopPropagation();
+                          navigate(`/exercises/${e.exercise_id}`);
+                        }}
+                        className="flex items-center gap-2 hover:underline text-xs"
+                      >
+                        <span className="w-4 h-4 rounded-full bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-black text-[9px] flex items-center justify-center">
+                          {String.fromCharCode(65 + eIdx)}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-bold text-slate-800 dark:text-slate-150 truncate text-xs">
+                            {e.exercise.name}
+                          </h4>
+                          <span className="text-[9px] text-slate-400 font-semibold block">
+                            Target: {e.target_sets} sets ×{' '}
+                            {e.exercise.measurement_type === 'reps' ? `${e.target_reps} reps` : `${e.target_time_seconds}s`}
+                            {e.exercise.is_bodyweight 
+                              ? e.target_added_weight ? ` @ +${e.target_added_weight}kg` : ' @ Bodyweight'
+                              : ` @ ${e.target_weight}kg`
+                            }
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            }
+          })
         )}
       </div>
 

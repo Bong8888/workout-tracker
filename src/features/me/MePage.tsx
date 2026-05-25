@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
+import {
   User, Plus, ChevronRight, Scale, Activity, CheckCircle2, AlertTriangle, Trash2,
   Settings, Database, Info, Download, Upload, RefreshCw, AlertCircle,
   Sun, Moon, Monitor
@@ -8,13 +8,13 @@ import {
 import { useBodyMetricsLive, createBodyMetric, deleteBodyMetric } from '../metrics/api';
 import { LineChart, Line, ResponsiveContainer } from 'recharts';
 import { db } from '../../db';
-import { 
-  useSettingsLive, 
-  updateSettings, 
-  downloadExport, 
-  importData, 
-  getAppStats, 
-  type AppStats 
+import {
+  useSettingsLive,
+  updateSettings,
+  downloadExport,
+  importData,
+  getAppStats,
+  type AppStats
 } from '../settings/api';
 import { seedIfEmpty } from '../../db/seed';
 
@@ -253,7 +253,7 @@ export default function MePage() {
                 <Scale className="w-5 h-5 text-purple-500" />
                 <span>Cập nhật cân nặng</span>
               </h3>
-              <button 
+              <button
                 onClick={() => setShowModal(false)}
                 className="text-slate-400 hover:text-slate-650 text-xs font-semibold p-1"
               >
@@ -565,7 +565,7 @@ export default function MePage() {
           <User className="w-8 h-8" />
         </div>
         <div>
-          <h2 className="text-lg font-black text-slate-800 dark:text-white leading-none">Hội viên của Antigravity</h2>
+          <h2 className="text-lg font-black text-slate-800 dark:text-white leading-none">Tuấn Super</h2>
           <span className="text-[10px] text-slate-400 font-semibold block mt-1.5">Mã số: #{(latestMetric?.id || 'tracker').slice(0, 8)}</span>
         </div>
       </div>
@@ -608,12 +608,12 @@ export default function MePage() {
               <div className="w-28 h-12">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={sparklineData}>
-                    <Line 
-                      type="monotone" 
-                      dataKey="weight" 
-                      stroke="#8b5cf6" 
-                      strokeWidth={2} 
-                      dot={false} 
+                    <Line
+                      type="monotone"
+                      dataKey="weight"
+                      stroke="#8b5cf6"
+                      strokeWidth={2}
+                      dot={false}
                     />
                   </LineChart>
                 </ResponsiveContainer>
@@ -625,7 +625,7 @@ export default function MePage() {
         )}
 
         <div className="border-t dark:border-slate-800/80 pt-3 flex justify-between items-center">
-          <button 
+          <button
             onClick={() => navigate('/stats')}
             className="text-xs font-bold text-slate-500 hover:text-purple-500 flex items-center gap-1 transition-colors"
           >
@@ -651,11 +651,10 @@ export default function MePage() {
                 <button
                   type="button"
                   onClick={() => handleThemeChange('light')}
-                  className={`py-1.5 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all text-[11px] ${
-                    settings.theme === 'light'
+                  className={`py-1.5 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all text-[11px] ${settings.theme === 'light'
                       ? 'bg-white dark:bg-slate-800 text-purple-650 dark:text-purple-400 shadow-sm scale-[1.02]'
                       : 'text-slate-500 dark:text-slate-400'
-                  }`}
+                    }`}
                 >
                   <Sun className="w-4.5 h-4.5" />
                   <span>Sáng</span>
@@ -663,11 +662,10 @@ export default function MePage() {
                 <button
                   type="button"
                   onClick={() => handleThemeChange('dark')}
-                  className={`py-1.5 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all text-[11px] ${
-                    settings.theme === 'dark'
+                  className={`py-1.5 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all text-[11px] ${settings.theme === 'dark'
                       ? 'bg-white dark:bg-slate-800 text-purple-650 dark:text-purple-400 shadow-sm scale-[1.02]'
                       : 'text-slate-500 dark:text-slate-400'
-                  }`}
+                    }`}
                 >
                   <Moon className="w-4.5 h-4.5" />
                   <span>Tối</span>
@@ -675,11 +673,10 @@ export default function MePage() {
                 <button
                   type="button"
                   onClick={() => handleThemeChange('system')}
-                  className={`py-1.5 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all text-[11px] ${
-                    settings.theme === 'system'
+                  className={`py-1.5 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all text-[11px] ${settings.theme === 'system'
                       ? 'bg-white dark:bg-slate-800 text-purple-650 dark:text-purple-400 shadow-sm scale-[1.02]'
                       : 'text-slate-500 dark:text-slate-400'
-                  }`}
+                    }`}
                 >
                   <Monitor className="w-4.5 h-4.5" />
                   <span>Hệ thống</span>
@@ -749,16 +746,14 @@ export default function MePage() {
                 type="button"
                 onClick={handleHapticToggle}
                 disabled={!isHapticSupported}
-                className={`w-12 h-6.5 rounded-full p-1 transition-all duration-200 focus:outline-none ${
-                  settings.haptic_enabled && isHapticSupported
+                className={`w-12 h-6.5 rounded-full p-1 transition-all duration-200 focus:outline-none ${settings.haptic_enabled && isHapticSupported
                     ? 'bg-purple-650 text-white'
                     : 'bg-slate-200 dark:bg-slate-800 text-slate-400'
-                }`}
+                  }`}
               >
                 <div
-                  className={`w-4.5 h-4.5 rounded-full bg-white transition-all shadow-sm ${
-                    settings.haptic_enabled && isHapticSupported ? 'translate-x-5.5' : 'translate-x-0'
-                  }`}
+                  className={`w-4.5 h-4.5 rounded-full bg-white transition-all shadow-sm ${settings.haptic_enabled && isHapticSupported ? 'translate-x-5.5' : 'translate-x-0'
+                    }`}
                 />
               </button>
             </div>
@@ -860,7 +855,7 @@ export default function MePage() {
         {bodyMetrics && bodyMetrics.length > 0 ? (
           <div className="space-y-2 max-h-[35vh] overflow-y-auto pr-1">
             {bodyMetrics.map((m) => (
-              <div 
+              <div
                 key={m.id}
                 className="bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-900 p-2.5 rounded-xl flex items-center justify-between text-xs font-semibold"
               >

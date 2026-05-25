@@ -4,8 +4,10 @@ import { ArrowLeft, ArrowRight, Save, Trash2, ArrowUp, ArrowDown, CheckCircle, A
 import { createCycle, getCycleById, getCycleDays, getCycleDayExercises, updateCycle } from './api';
 import { useExercises } from '../exercises/api';
 import type { Exercise } from '../../db/types';
+import { groupExercises } from '../../utils/grouping';
 
 interface FormExercise {
+  id: string;
   exercise_id: string;
   exercise_name: string;
   is_bodyweight: boolean;
@@ -16,6 +18,8 @@ interface FormExercise {
   target_added_weight?: number;
   target_time_seconds?: number;
   notes?: string;
+  group_id?: string;
+  group_type?: 'single' | 'superset' | 'triset' | 'circuit';
 }
 
 interface FormDay {
@@ -52,6 +56,12 @@ export default function CycleForm() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMuscle, setSelectedMuscle] = useState('all');
 
+  // Superset group creator modal states
+  const [showGroupModal, setShowGroupModal] = useState(false);
+  const [activeDayIndexForGroupModal, setActiveDayIndexForGroupModal] = useState<number | null>(null);
+  const [groupCreatorSelectedExercises, setGroupCreatorSelectedExercises] = useState<Exercise[]>([]);
+  const [activeGroupIdForModal, setActiveGroupIdForModal] = useState<string | null>(null);
+
   // Exercise database for modal
   const exercises = useExercises({
     search: searchQuery,
@@ -82,6 +92,7 @@ export default function CycleForm() {
               day_type: d.day_type,
               name: d.name,
               exercises: exs.map((e) => ({
+                id: e.id,
                 exercise_id: e.exercise_id,
                 exercise_name: e.exercise.name,
                 is_bodyweight: e.exercise.is_bodyweight,
@@ -92,6 +103,8 @@ export default function CycleForm() {
                 target_added_weight: e.target_added_weight,
                 target_time_seconds: e.target_time_seconds,
                 notes: e.notes,
+                group_id: e.group_id,
+                group_type: e.group_type,
               })),
             });
           }
@@ -169,8 +182,9 @@ export default function CycleForm() {
   };
 
   // Exercise Modal controls
-  const handleOpenExerciseModal = (dayIndex: number) => {
+  const handleOpenExerciseModal = (dayIndex: number, groupId: string | null = null) => {
     setActiveDayIndexForModal(dayIndex);
+    setActiveGroupIdForModal(groupId);
     setShowExerciseModal(true);
     setSearchQuery('');
     setSelectedMuscle('all');
@@ -189,6 +203,7 @@ export default function CycleForm() {
     }
 
     const newFormEx: FormExercise = {
+      id: crypto.randomUUID(),
       exercise_id: exercise.id,
       exercise_name: exercise.name,
       is_bodyweight: exercise.is_bodyweight,
@@ -201,11 +216,36 @@ export default function CycleForm() {
     };
 
     const newDays = [...days];
-    newDays[activeDayIndexForModal].exercises.push(newFormEx);
+    
+    if (activeGroupIdForModal) {
+      const groupExs = targetDay.exercises.filter(e => e.group_id === activeGroupIdForModal);
+      if (groupExs.length > 0) {
+        newFormEx.group_id = activeGroupIdForModal;
+        
+        // Find last element in the group to append contiguous
+        const lastExIndex = targetDay.exercises.findLastIndex(e => e.group_id === activeGroupIdForModal);
+        newDays[activeDayIndexForModal].exercises.splice(lastExIndex + 1, 0, newFormEx);
+        
+        // Update group count and types
+        const newGroupCount = groupExs.length + 1;
+        const newGroupType = newGroupCount === 2 ? 'superset' : newGroupCount === 3 ? 'triset' : 'circuit';
+        
+        newDays[activeDayIndexForModal].exercises = newDays[activeDayIndexForModal].exercises.map(e => {
+          if (e.group_id === activeGroupIdForModal) {
+            return { ...e, group_type: newGroupType };
+          }
+          return e;
+        });
+      }
+    } else {
+      newDays[activeDayIndexForModal].exercises.push(newFormEx);
+    }
+    
     setDays(newDays);
 
     setShowExerciseModal(false);
     setActiveDayIndexForModal(null);
+    setActiveGroupIdForModal(null);
   };
 
   const handleDeleteExercise = (dayIndex: number, exIndex: number) => {
@@ -221,25 +261,188 @@ export default function CycleForm() {
     value: any
   ) => {
     const newDays = [...days];
+    const targetEx = newDays[dayIndex].exercises[exIndex];
+    
+    if (field === 'target_sets' && targetEx.group_id) {
+      const confirmSync = window.confirm('Bạn có muốn đồng bộ số Sets cho tất cả bài tập trong nhóm này không?');
+      if (confirmSync) {
+        newDays[dayIndex].exercises = newDays[dayIndex].exercises.map((ex) => {
+          if (ex.group_id === targetEx.group_id) {
+            return { ...ex, target_sets: value };
+          }
+          return ex;
+        });
+        setDays(newDays);
+        return;
+      }
+    }
+    
     newDays[dayIndex].exercises[exIndex] = {
-      ...newDays[dayIndex].exercises[exIndex],
+      ...targetEx,
       [field]: value,
     };
     setDays(newDays);
   };
 
-  // Exercise Ordering controls
-  const moveExercise = (dayIndex: number, exIndex: number, direction: 'up' | 'down') => {
-    const targetIndex = direction === 'up' ? exIndex - 1 : exIndex + 1;
-    const day = days[dayIndex];
-    if (targetIndex < 0 || targetIndex >= day.exercises.length) return;
+  // Group Creator Modal handlers
+  const handleOpenGroupModal = (dayIndex: number) => {
+    setActiveDayIndexForGroupModal(dayIndex);
+    setShowGroupModal(true);
+    setSearchQuery('');
+    setSelectedMuscle('all');
+    setGroupCreatorSelectedExercises([]);
+  };
+
+  const handleToggleExerciseInGroupCreator = (ex: Exercise) => {
+    if (groupCreatorSelectedExercises.some(e => e.id === ex.id)) {
+      setGroupCreatorSelectedExercises(groupCreatorSelectedExercises.filter(e => e.id !== ex.id));
+    } else {
+      setGroupCreatorSelectedExercises([...groupCreatorSelectedExercises, ex]);
+    }
+  };
+
+  const handleSaveGroup = () => {
+    if (activeDayIndexForGroupModal === null) return;
+    if (groupCreatorSelectedExercises.length < 2) {
+      alert('Vui lòng chọn ít nhất 2 bài tập để tạo nhóm.');
+      return;
+    }
+
+    const targetDay = days[activeDayIndexForGroupModal];
+    
+    // Check duplicates
+    const duplicate = groupCreatorSelectedExercises.find(ex => 
+      targetDay.exercises.some(e => e.exercise_id === ex.id)
+    );
+    if (duplicate) {
+      alert(`Bài tập "${duplicate.name}" đã có trong ngày tập.`);
+      return;
+    }
+
+    const newGroupId = crypto.randomUUID();
+    const groupCount = groupCreatorSelectedExercises.length;
+    const groupType = groupCount === 2 ? 'superset' : groupCount === 3 ? 'triset' : 'circuit';
+
+    const newFormExercises: FormExercise[] = groupCreatorSelectedExercises.map(exercise => ({
+      id: crypto.randomUUID(),
+      exercise_id: exercise.id,
+      exercise_name: exercise.name,
+      is_bodyweight: exercise.is_bodyweight,
+      measurement_type: exercise.measurement_type,
+      target_sets: 3,
+      target_reps: exercise.measurement_type === 'reps' ? 10 : undefined,
+      target_weight: (!exercise.is_bodyweight && exercise.measurement_type === 'reps') ? 20 : undefined,
+      target_added_weight: (exercise.is_bodyweight && exercise.measurement_type === 'reps') ? 0 : undefined,
+      target_time_seconds: exercise.measurement_type === 'time' ? 60 : undefined,
+      group_id: newGroupId,
+      group_type: groupType,
+    }));
 
     const newDays = [...days];
-    const temp = newDays[dayIndex].exercises[exIndex];
-    newDays[dayIndex].exercises[exIndex] = newDays[dayIndex].exercises[targetIndex];
-    newDays[dayIndex].exercises[targetIndex] = temp;
+    newDays[activeDayIndexForGroupModal].exercises.push(...newFormExercises);
+    setDays(newDays);
+
+    setShowGroupModal(false);
+    setActiveDayIndexForGroupModal(null);
+    setGroupCreatorSelectedExercises([]);
+  };
+
+  const handleSplitGroup = (dayIndex: number, groupId: string) => {
+    const newDays = [...days];
+    newDays[dayIndex].exercises = newDays[dayIndex].exercises.map((ex) => {
+      if (ex.group_id === groupId) {
+        return { ...ex, group_id: undefined, group_type: undefined };
+      }
+      return ex;
+    });
     setDays(newDays);
   };
+
+  const handleDeleteGroup = (dayIndex: number, groupId: string) => {
+    if (window.confirm('Bạn có chắc muốn xóa toàn bộ nhóm bài tập này không?')) {
+      const newDays = [...days];
+      newDays[dayIndex].exercises = newDays[dayIndex].exercises.filter((ex) => ex.group_id !== groupId);
+      setDays(newDays);
+    }
+  };
+
+  const handleDeleteExerciseInGroup = (dayIndex: number, exerciseId: string, groupId: string) => {
+    const newDays = [...days];
+    let dayExercises = newDays[dayIndex].exercises.filter((ex) => ex.id !== exerciseId);
+    
+    const remainingInGroup = dayExercises.filter((ex) => ex.group_id === groupId);
+    if (remainingInGroup.length <= 1) {
+      dayExercises = dayExercises.map((ex) => {
+        if (ex.group_id === groupId) {
+          return { ...ex, group_id: undefined, group_type: undefined };
+        }
+        return ex;
+      });
+    } else {
+      const newGroupType = remainingInGroup.length === 2 ? 'superset' : remainingInGroup.length === 3 ? 'triset' : 'circuit';
+      dayExercises = dayExercises.map((ex) => {
+        if (ex.group_id === groupId) {
+          return { ...ex, group_type: newGroupType };
+        }
+        return ex;
+      });
+    }
+    newDays[dayIndex].exercises = dayExercises;
+    setDays(newDays);
+  };
+
+  const moveGroup = (dayIndex: number, groupId: string, direction: 'up' | 'down') => {
+    const day = days[dayIndex];
+    const groups = groupExercises(day.exercises);
+    const groupIndex = groups.findIndex((g) => g.id === groupId);
+    if (groupIndex === -1) return;
+    
+    const targetIndex = direction === 'up' ? groupIndex - 1 : groupIndex + 1;
+    if (targetIndex < 0 || targetIndex >= groups.length) return;
+    
+    const newGroups = [...groups];
+    const temp = newGroups[groupIndex];
+    newGroups[groupIndex] = newGroups[targetIndex];
+    newGroups[targetIndex] = temp;
+    
+    const flattenedExercises: FormExercise[] = [];
+    for (const g of newGroups) {
+      flattenedExercises.push(...g.exercises);
+    }
+    
+    const newDays = [...days];
+    newDays[dayIndex].exercises = flattenedExercises;
+    setDays(newDays);
+  };
+
+  const moveExerciseInGroup = (dayIndex: number, groupId: string, exIndexInGroup: number, direction: 'up' | 'down') => {
+    const day = days[dayIndex];
+    const groups = groupExercises(day.exercises);
+    const group = groups.find((g) => g.id === groupId);
+    if (!group) return;
+    
+    const targetIndex = direction === 'up' ? exIndexInGroup - 1 : exIndexInGroup + 1;
+    if (targetIndex < 0 || targetIndex >= group.exercises.length) return;
+    
+    const newGroupExercises = [...group.exercises];
+    const temp = newGroupExercises[exIndexInGroup];
+    newGroupExercises[exIndexInGroup] = newGroupExercises[targetIndex];
+    newGroupExercises[targetIndex] = temp;
+    
+    const flattenedExercises: FormExercise[] = [];
+    for (const g of groups) {
+      if (g.id === groupId) {
+        flattenedExercises.push(...newGroupExercises);
+      } else {
+        flattenedExercises.push(...g.exercises);
+      }
+    }
+    
+    const newDays = [...days];
+    newDays[dayIndex].exercises = flattenedExercises;
+    setDays(newDays);
+  };
+
 
   // Submit flow
   const handleSaveCycle = async () => {
@@ -262,6 +465,8 @@ export default function CycleForm() {
               target_added_weight: e.target_added_weight !== undefined ? Number(e.target_added_weight) : undefined,
               target_time_seconds: e.target_time_seconds !== undefined ? Number(e.target_time_seconds) : undefined,
               notes: e.notes?.trim() || undefined,
+              group_id: e.group_id,
+              group_type: e.group_type,
             }))
           : [],
       })),
@@ -402,7 +607,7 @@ export default function CycleForm() {
                   <div
                     key={ex.id}
                     onClick={() => handleSelectExercise(ex)}
-                    className="p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-xl cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 transition-colors flex justify-between items-center"
+                    className="p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-xl cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 transition-colors flex justify-between items-center"
                   >
                     <div>
                       <h4 className="font-bold text-slate-800 dark:text-slate-100 text-xs">{ex.name}</h4>
@@ -414,6 +619,112 @@ export default function CycleForm() {
               ) : (
                 <p className="text-xs text-center text-slate-400 py-8">Không tìm thấy bài tập phù hợp.</p>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Group Creator Modal */}
+      {showGroupModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 w-full max-w-sm shadow-xl border border-slate-100 dark:border-slate-700 flex flex-col h-[75vh]">
+            <div className="flex items-center justify-between border-b pb-2.5 mb-3">
+              <h3 className="font-bold text-slate-850 dark:text-white text-base">Tạo nhóm Superset / Tri-set</h3>
+              <button 
+                onClick={() => {
+                  setShowGroupModal(false);
+                  setActiveDayIndexForGroupModal(null);
+                  setGroupCreatorSelectedExercises([]);
+                }}
+                className="text-slate-400 hover:text-slate-650 text-sm font-semibold p-1"
+              >
+                Đóng
+              </button>
+            </div>
+
+            {/* Modal search bar */}
+            <div className="space-y-2 mb-3">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Tìm bài tập..."
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500 text-xs dark:text-white"
+              />
+              <select
+                value={selectedMuscle}
+                onChange={(e) => setSelectedMuscle(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500 text-xs dark:text-slate-200"
+              >
+                <option value="all">Tất cả nhóm cơ</option>
+                <option value="chest">Ngực</option>
+                <option value="back">Lưng</option>
+                <option value="legs">Chân</option>
+                <option value="shoulders">Vai</option>
+                <option value="arms">Tay</option>
+                <option value="core">Bụng</option>
+                <option value="cardio">Tim mạch</option>
+                <option value="full_body">Toàn thân</option>
+              </select>
+            </div>
+
+            {/* Selected exercises indicators */}
+            {groupCreatorSelectedExercises.length > 0 && (
+              <div className="mb-3 p-2 bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/30 rounded-xl space-y-1">
+                <span className="text-[9px] uppercase tracking-wider font-extrabold text-indigo-650 dark:text-indigo-400 block">Thứ tự các bài tập trong nhóm:</span>
+                <div className="flex flex-wrap gap-1">
+                  {groupCreatorSelectedExercises.map((ex, sIdx) => (
+                    <span key={ex.id} className="bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-semibold px-2 py-0.5 rounded text-[10px]">
+                      {sIdx + 1}. {ex.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Exercises List */}
+            <div className="flex-1 overflow-y-auto pr-1 space-y-1.5">
+              {exercises && exercises.length > 0 ? (
+                exercises.map((ex) => {
+                  const isSelected = groupCreatorSelectedExercises.some(e => e.id === ex.id);
+                  return (
+                    <div
+                      key={ex.id}
+                      onClick={() => handleToggleExerciseInGroupCreator(ex)}
+                      className={`p-2.5 border rounded-xl cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 transition-colors flex justify-between items-center ${
+                        isSelected 
+                          ? 'bg-indigo-50/30 dark:bg-indigo-950/30 border-indigo-400 dark:border-indigo-600'
+                          : 'bg-slate-50 dark:bg-slate-900 border-slate-100 dark:border-slate-800'
+                      }`}
+                    >
+                      <div>
+                        <h4 className="font-bold text-slate-800 dark:text-slate-100 text-xs">{ex.name}</h4>
+                        <span className="text-[10px] text-slate-400">{ex.muscle_group} • {ex.equipment}</span>
+                      </div>
+                      <div className={`w-4 h-4 rounded-full border flex items-center justify-center font-bold text-xs ${
+                        isSelected 
+                          ? 'bg-indigo-600 border-indigo-600 text-white'
+                          : 'border-slate-300 dark:border-slate-650'
+                      }`}>
+                        {isSelected ? '✓' : ''}
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <p className="text-xs text-center text-slate-400 py-8">Không tìm thấy bài tập phù hợp.</p>
+              )}
+            </div>
+
+            {/* Confirm create */}
+            <div className="mt-3 border-t pt-3">
+              <button
+                onClick={handleSaveGroup}
+                disabled={groupCreatorSelectedExercises.length < 2}
+                className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs transition-colors"
+              >
+                Tạo nhóm ({groupCreatorSelectedExercises.length} bài)
+              </button>
             </div>
           </div>
         </div>
@@ -614,13 +925,23 @@ export default function CycleForm() {
                       <h4 className="font-bold text-slate-800 dark:text-white text-sm">
                         {day.name}
                       </h4>
-                      <button
-                        type="button"
-                        onClick={() => handleOpenExerciseModal(dIdx)}
-                        className="text-primary-600 dark:text-primary-400 font-bold text-xs flex items-center gap-1"
-                      >
-                        + Thêm bài tập
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenExerciseModal(dIdx)}
+                          className="text-primary-655 dark:text-primary-400 font-bold text-xs flex items-center gap-1"
+                        >
+                          + Thêm bài lẻ
+                        </button>
+                        <span className="text-slate-350 dark:text-slate-750">|</span>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenGroupModal(dIdx)}
+                          className="text-indigo-655 dark:text-indigo-400 font-bold text-xs flex items-center gap-1"
+                        >
+                          + Tạo Superset/Tri-set
+                        </button>
+                      </div>
                     </div>
 
                     {/* Exercises List in Day */}
@@ -629,122 +950,314 @@ export default function CycleForm() {
                         Chưa có bài tập. Vui lòng thêm bài tập.
                       </p>
                     ) : (
-                      <div className="space-y-2">
-                        {day.exercises.map((ex, exIdx) => (
-                          <div 
-                            key={ex.exercise_id} 
-                            className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-3 rounded-xl shadow-sm space-y-3"
-                          >
-                            <div className="flex justify-between items-center">
-                              <span className="font-bold text-xs text-slate-800 dark:text-white">
-                                {exIdx + 1}. {ex.exercise_name}
-                              </span>
-                              
-                              <div className="flex items-center gap-1.5">
-                                {/* Order arrows */}
-                                <button
-                                  type="button"
-                                  disabled={exIdx === 0}
-                                  onClick={() => moveExercise(dIdx, exIdx, 'up')}
-                                  className="p-1 text-slate-350 disabled:opacity-20"
-                                >
-                                  <ArrowUp className="w-3 h-3" />
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={exIdx === day.exercises.length - 1}
-                                  onClick={() => moveExercise(dIdx, exIdx, 'down')}
-                                  className="p-1 text-slate-350 disabled:opacity-20"
-                                >
-                                  <ArrowDown className="w-3 h-3" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteExercise(dIdx, exIdx)}
-                                  className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors ml-1"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
+                      <div className="space-y-4">
+                        {groupExercises(day.exercises).map((group, groupIdx, allGroups) => {
+                          const isSingle = group.type === 'single';
+                          if (isSingle) {
+                            const ex = group.exercises[0];
+                            const flatIdx = day.exercises.findIndex(e => e.id === ex.id);
+                            return (
+                              <div 
+                                key={group.id} 
+                                className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-3 rounded-xl shadow-sm space-y-3"
+                              >
+                                <div className="flex justify-between items-center">
+                                  <span className="font-bold text-xs text-slate-800 dark:text-white">
+                                    {ex.exercise_name}
+                                  </span>
+                                  
+                                  <div className="flex items-center gap-1.5">
+                                    {/* Order arrows for groups/single cards */}
+                                    <button
+                                      type="button"
+                                      disabled={groupIdx === 0}
+                                      onClick={() => moveGroup(dIdx, group.id, 'up')}
+                                      className="p-1 text-slate-350 disabled:opacity-20 hover:text-slate-650 dark:hover:text-slate-300"
+                                    >
+                                      <ArrowUp className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={groupIdx === allGroups.length - 1}
+                                      onClick={() => moveGroup(dIdx, group.id, 'down')}
+                                      className="p-1 text-slate-350 disabled:opacity-20 hover:text-slate-650 dark:hover:text-slate-300"
+                                    >
+                                      <ArrowDown className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteExercise(dIdx, flatIdx)}
+                                      className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors ml-1"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {/* Targets Grid */}
+                                <div className="grid grid-cols-3 gap-2 text-xs font-semibold text-slate-650 dark:text-slate-300">
+                                  {/* Sets count */}
+                                  <div>
+                                    <label className="block text-[10px] text-slate-400 mb-0.5">Sets</label>
+                                    <input
+                                      type="number"
+                                      value={ex.target_sets}
+                                      onChange={(e) => handleUpdateExerciseTarget(dIdx, flatIdx, 'target_sets', Number(e.target.value))}
+                                      min={1}
+                                      className="w-full px-2 py-1 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 rounded-lg text-center font-bold"
+                                    />
+                                  </div>
+
+                                  {/* Measurement Type: reps vs time */}
+                                  {ex.measurement_type === 'reps' ? (
+                                    <div>
+                                      <label className="block text-[10px] text-slate-400 mb-0.5">Reps</label>
+                                      <input
+                                        type="number"
+                                        value={ex.target_reps || ''}
+                                        onChange={(e) => handleUpdateExerciseTarget(dIdx, flatIdx, 'target_reps', Number(e.target.value))}
+                                        min={1}
+                                        className="w-full px-2 py-1 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 rounded-lg text-center font-bold"
+                                      />
+                                    </div>
+                                  ) : (
+                                    <div>
+                                      <label className="block text-[10px] text-slate-400 mb-0.5">Giây</label>
+                                      <input
+                                        type="number"
+                                        value={ex.target_time_seconds || ''}
+                                        onChange={(e) => handleUpdateExerciseTarget(dIdx, flatIdx, 'target_time_seconds', Number(e.target.value))}
+                                        min={1}
+                                        className="w-full px-2 py-1 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 rounded-lg text-center font-bold"
+                                      />
+                                    </div>
+                                  )}
+
+                                  {/* Weight: regular vs bodyweight */}
+                                  {ex.is_bodyweight ? (
+                                    <div>
+                                      <label className="block text-[10px] text-slate-400 mb-0.5">Tạ thêm (+kg)</label>
+                                      <input
+                                        type="number"
+                                        value={ex.target_added_weight ?? ''}
+                                        onChange={(e) => handleUpdateExerciseTarget(dIdx, flatIdx, 'target_added_weight', Number(e.target.value))}
+                                        min={0}
+                                        className="w-full px-2 py-1 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 rounded-lg text-center font-bold"
+                                      />
+                                    </div>
+                                  ) : (
+                                    <div>
+                                      <label className="block text-[10px] text-slate-400 mb-0.5">Tạ (kg)</label>
+                                      <input
+                                        type="number"
+                                        value={ex.target_weight ?? ''}
+                                        onChange={(e) => handleUpdateExerciseTarget(dIdx, flatIdx, 'target_weight', Number(e.target.value))}
+                                        min={0}
+                                        className="w-full px-2 py-1 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 rounded-lg text-center font-bold"
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Note input */}
+                                <div>
+                                  <input
+                                    type="text"
+                                    value={ex.notes || ''}
+                                    onChange={(e) => handleUpdateExerciseTarget(dIdx, flatIdx, 'notes', e.target.value)}
+                                    placeholder="Ghi chú bài tập (vd: Tập chậm, siết cơ...)"
+                                    className="w-full px-2 py-1 border border-slate-200 dark:border-slate-755 bg-slate-50 dark:bg-slate-950 rounded-lg text-[10px] dark:text-slate-300"
+                                  />
+                                </div>
                               </div>
-                            </div>
+                            );
+                          } else {
+                            // Superset / Tri-set / Circuit group container card
+                            const groupLabel = group.type === 'superset' ? 'Superset' : group.type === 'triset' ? 'Tri-set' : 'Circuit';
+                            return (
+                              <div 
+                                key={group.id} 
+                                className="border-2 border-indigo-200 dark:border-indigo-900/50 bg-indigo-50/15 dark:bg-indigo-950/10 p-3.5 rounded-2xl space-y-3"
+                              >
+                                {/* Group card Header */}
+                                <div className="flex justify-between items-center bg-indigo-50/45 dark:bg-indigo-900/20 px-2 py-1.5 rounded-xl border border-indigo-100/50 dark:border-indigo-850/50 text-[10px]">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="uppercase tracking-wider font-extrabold text-indigo-750 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-950/80 px-2 py-0.5 rounded-md">
+                                      {groupLabel}
+                                    </span>
+                                    <span className="text-slate-500 dark:text-slate-400 font-bold">
+                                      {group.exercises.length} bài tập
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-1 text-[9px] font-bold">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenExerciseModal(dIdx, group.id)}
+                                      className="text-indigo-650 dark:text-indigo-400 hover:underline px-1.5 py-0.5 rounded"
+                                    >
+                                      + Thêm bài
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSplitGroup(dIdx, group.id)}
+                                      className="text-indigo-650 dark:text-indigo-400 hover:underline px-1.5 py-0.5 rounded"
+                                    >
+                                      Tách nhóm
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteGroup(dIdx, group.id)}
+                                      className="text-red-650 dark:text-red-550 hover:underline px-1.5 py-0.5 rounded"
+                                    >
+                                      Xóa nhóm
+                                    </button>
+                                    <span className="text-slate-300 dark:text-slate-700 px-0.5 font-normal">|</span>
+                                    {/* Group move keys */}
+                                    <button
+                                      type="button"
+                                      disabled={groupIdx === 0}
+                                      onClick={() => moveGroup(dIdx, group.id, 'up')}
+                                      className="p-0.5 text-slate-400 disabled:opacity-20 hover:text-slate-655 dark:hover:text-slate-350"
+                                    >
+                                      <ArrowUp className="w-3 h-3" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={groupIdx === allGroups.length - 1}
+                                      onClick={() => moveGroup(dIdx, group.id, 'down')}
+                                      className="p-0.5 text-slate-400 disabled:opacity-20 hover:text-slate-655 dark:hover:text-slate-350"
+                                    >
+                                      <ArrowDown className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                </div>
 
-                            {/* Targets Grid */}
-                            <div className="grid grid-cols-3 gap-2 text-xs font-semibold text-slate-650 dark:text-slate-300">
-                              {/* Sets count */}
-                              <div>
-                                <label className="block text-[10px] text-slate-400 mb-0.5">Sets</label>
-                                <input
-                                  type="number"
-                                  value={ex.target_sets}
-                                  onChange={(e) => handleUpdateExerciseTarget(dIdx, exIdx, 'target_sets', Number(e.target.value))}
-                                  min={1}
-                                  className="w-full px-2 py-1 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 rounded-lg text-center font-bold"
-                                />
+                                {/* Exercises in group list */}
+                                <div className="space-y-2.5 pl-2.5 border-l-2 border-indigo-200 dark:border-indigo-850">
+                                  {group.exercises.map((ex, exIdxInGroup) => {
+                                    const flatIdx = day.exercises.findIndex(e => e.id === ex.id);
+                                    return (
+                                      <div 
+                                        key={ex.id} 
+                                        className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-2.5 rounded-xl shadow-xs space-y-2.5 relative"
+                                      >
+                                        <div className="flex justify-between items-center">
+                                          <div className="flex items-center gap-1.5">
+                                            <span className="w-4 h-4 rounded-full bg-indigo-50 dark:bg-indigo-950 text-indigo-650 dark:text-indigo-400 font-black text-[10px] flex items-center justify-center">
+                                              {String.fromCharCode(65 + exIdxInGroup)}
+                                            </span>
+                                            <span className="font-bold text-xs text-slate-800 dark:text-white">
+                                              {ex.exercise_name}
+                                            </span>
+                                          </div>
+                                          <div className="flex items-center gap-1">
+                                            {/* Subordering within group */}
+                                            <button
+                                              type="button"
+                                              disabled={exIdxInGroup === 0}
+                                              onClick={() => moveExerciseInGroup(dIdx, group.id, exIdxInGroup, 'up')}
+                                              className="p-0.5 text-slate-350 disabled:opacity-20 hover:text-slate-600"
+                                            >
+                                              <ArrowUp className="w-2.5 h-2.5" />
+                                            </button>
+                                            <button
+                                              type="button"
+                                              disabled={exIdxInGroup === group.exercises.length - 1}
+                                              onClick={() => moveExerciseInGroup(dIdx, group.id, exIdxInGroup, 'down')}
+                                              className="p-0.5 text-slate-350 disabled:opacity-20 hover:text-slate-600"
+                                            >
+                                              <ArrowDown className="w-2.5 h-2.5" />
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleDeleteExerciseInGroup(dIdx, ex.id, group.id)}
+                                              className="p-1 text-slate-400 hover:text-red-500 rounded transition-colors"
+                                            >
+                                              <Trash2 className="w-3 h-3" />
+                                            </button>
+                                          </div>
+                                        </div>
+
+                                        {/* Targets inputs */}
+                                        <div className="grid grid-cols-3 gap-2 text-xs font-semibold text-slate-650 dark:text-slate-300">
+                                          <div>
+                                            <label className="block text-[9px] text-slate-400 mb-0.5">Sets</label>
+                                            <input
+                                              type="number"
+                                              value={ex.target_sets}
+                                              onChange={(e) => handleUpdateExerciseTarget(dIdx, flatIdx, 'target_sets', Number(e.target.value))}
+                                              min={1}
+                                              className="w-full px-1.5 py-0.5 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-955 rounded text-center font-bold text-[11px]"
+                                            />
+                                          </div>
+
+                                          {ex.measurement_type === 'reps' ? (
+                                            <div>
+                                              <label className="block text-[9px] text-slate-400 mb-0.5">Reps</label>
+                                              <input
+                                                type="number"
+                                                value={ex.target_reps || ''}
+                                                onChange={(e) => handleUpdateExerciseTarget(dIdx, flatIdx, 'target_reps', Number(e.target.value))}
+                                                min={1}
+                                                className="w-full px-1.5 py-0.5 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-955 rounded text-center font-bold text-[11px]"
+                                              />
+                                            </div>
+                                          ) : (
+                                            <div>
+                                              <label className="block text-[9px] text-slate-400 mb-0.5">Giây</label>
+                                              <input
+                                                type="number"
+                                                value={ex.target_time_seconds || ''}
+                                                onChange={(e) => handleUpdateExerciseTarget(dIdx, flatIdx, 'target_time_seconds', Number(e.target.value))}
+                                                min={1}
+                                                className="w-full px-1.5 py-0.5 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-955 rounded text-center font-bold text-[11px]"
+                                              />
+                                            </div>
+                                          )}
+
+                                          {ex.is_bodyweight ? (
+                                            <div>
+                                              <label className="block text-[9px] text-slate-400 mb-0.5">Tạ thêm (+kg)</label>
+                                              <input
+                                                type="number"
+                                                value={ex.target_added_weight ?? ''}
+                                                onChange={(e) => handleUpdateExerciseTarget(dIdx, flatIdx, 'target_added_weight', Number(e.target.value))}
+                                                min={0}
+                                                className="w-full px-1.5 py-0.5 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-955 rounded text-center font-bold text-[11px]"
+                                              />
+                                            </div>
+                                          ) : (
+                                            <div>
+                                              <label className="block text-[9px] text-slate-400 mb-0.5">Tạ (kg)</label>
+                                              <input
+                                                type="number"
+                                                value={ex.target_weight ?? ''}
+                                                onChange={(e) => handleUpdateExerciseTarget(dIdx, flatIdx, 'target_weight', Number(e.target.value))}
+                                                min={0}
+                                                className="w-full px-1.5 py-0.5 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-955 rounded text-center font-bold text-[11px]"
+                                              />
+                                            </div>
+                                          )}
+                                        </div>
+
+                                        {/* Notes input */}
+                                        <div>
+                                          <input
+                                            type="text"
+                                            value={ex.notes || ''}
+                                            onChange={(e) => handleUpdateExerciseTarget(dIdx, flatIdx, 'notes', e.target.value)}
+                                            placeholder="Ghi chú bài tập trong nhóm..."
+                                            className="w-full px-2 py-0.5 border border-slate-200 dark:border-slate-750 bg-slate-50 dark:bg-slate-955 rounded text-[9px] dark:text-slate-350"
+                                          />
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
                               </div>
-
-                              {/* Measurement Type: reps vs time */}
-                              {ex.measurement_type === 'reps' ? (
-                                <div>
-                                  <label className="block text-[10px] text-slate-400 mb-0.5">Reps</label>
-                                  <input
-                                    type="number"
-                                    value={ex.target_reps || ''}
-                                    onChange={(e) => handleUpdateExerciseTarget(dIdx, exIdx, 'target_reps', Number(e.target.value))}
-                                    min={1}
-                                    className="w-full px-2 py-1 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 rounded-lg text-center font-bold"
-                                  />
-                                </div>
-                              ) : (
-                                <div>
-                                  <label className="block text-[10px] text-slate-400 mb-0.5">Giây</label>
-                                  <input
-                                    type="number"
-                                    value={ex.target_time_seconds || ''}
-                                    onChange={(e) => handleUpdateExerciseTarget(dIdx, exIdx, 'target_time_seconds', Number(e.target.value))}
-                                    min={1}
-                                    className="w-full px-2 py-1 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 rounded-lg text-center font-bold"
-                                  />
-                                </div>
-                              )}
-
-                              {/* Weight: regular vs bodyweight */}
-                              {ex.is_bodyweight ? (
-                                <div>
-                                  <label className="block text-[10px] text-slate-400 mb-0.5">Tạ thêm (+kg)</label>
-                                  <input
-                                    type="number"
-                                    value={ex.target_added_weight ?? ''}
-                                    onChange={(e) => handleUpdateExerciseTarget(dIdx, exIdx, 'target_added_weight', Number(e.target.value))}
-                                    min={0}
-                                    className="w-full px-2 py-1 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 rounded-lg text-center font-bold"
-                                  />
-                                </div>
-                              ) : (
-                                <div>
-                                  <label className="block text-[10px] text-slate-400 mb-0.5">Tạ (kg)</label>
-                                  <input
-                                    type="number"
-                                    value={ex.target_weight ?? ''}
-                                    onChange={(e) => handleUpdateExerciseTarget(dIdx, exIdx, 'target_weight', Number(e.target.value))}
-                                    min={0}
-                                    className="w-full px-2 py-1 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 rounded-lg text-center font-bold"
-                                  />
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Note input */}
-                            <div>
-                              <input
-                                type="text"
-                                value={ex.notes || ''}
-                                onChange={(e) => handleUpdateExerciseTarget(dIdx, exIdx, 'notes', e.target.value)}
-                                placeholder="Ghi chú bài tập (vd: Tập chậm, siết cơ...)"
-                                className="w-full px-2 py-1 border border-slate-200 dark:border-slate-750 bg-slate-50 dark:bg-slate-950 rounded-lg text-[10px] dark:text-slate-300"
-                              />
-                            </div>
-                          </div>
-                        ))}
+                            );
+                          }
+                        })}
                       </div>
                     )}
                   </div>
@@ -764,7 +1277,7 @@ export default function CycleForm() {
               <div className="space-y-1.5 text-xs">
                 <p><span className="text-slate-400">Tên:</span> <span className="font-bold text-slate-800 dark:text-white">{name}</span></p>
                 <p><span className="text-slate-400">Bắt đầu:</span> <span className="font-bold text-slate-800 dark:text-white">{startDate}</span></p>
-                {description && <p><span className="text-slate-400 font-semibold block mb-0.5">Mô tả:</span> <span className="text-slate-650 dark:text-slate-350 whitespace-pre-line block bg-white dark:bg-slate-950 p-2 rounded-xl border border-slate-100 dark:border-slate-850 leading-relaxed">{description}</span></p>}
+                {description && <p><span className="text-slate-400 font-semibold block mb-0.5">Mô tả:</span> <span className="text-slate-650 dark:text-slate-350 whitespace-pre-line block bg-white dark:bg-slate-955 p-2 rounded-xl border border-slate-100 dark:border-slate-850 leading-relaxed">{description}</span></p>}
               </div>
             </div>
 
@@ -789,21 +1302,34 @@ export default function CycleForm() {
                     <div className="space-y-1 pl-2 border-l border-slate-200 dark:border-slate-750 text-xs">
                       {day.exercises.length === 0 ? (
                         <p className="text-amber-500 flex items-center gap-1 font-medium text-[10px]">
-                          <AlertTriangle className="w-3 h-3" />
+                          <AlertTriangle className="w-3.5 h-3.5" />
                           <span>Chưa có bài tập cho ngày này</span>
                         </p>
                       ) : (
-                        day.exercises.map((e, eIdx) => (
-                          <div key={e.exercise_id} className="text-slate-600 dark:text-slate-350">
-                            {eIdx + 1}. {e.exercise_name} (
-                            {e.target_sets} sets ×{' '}
-                            {e.measurement_type === 'reps' ? `${e.target_reps} reps` : `${e.target_time_seconds}s`}
-                            {e.is_bodyweight 
-                              ? e.target_added_weight ? ` @ +${e.target_added_weight}kg` : ' @ Bodyweight'
-                              : ` @ ${e.target_weight}kg`
-                            })
-                          </div>
-                        ))
+                        groupExercises(day.exercises).map((group) => {
+                          if (group.type === 'single') {
+                            const e = group.exercises[0];
+                            return (
+                              <div key={e.id} className="text-slate-650 dark:text-slate-350">
+                                • {e.exercise_name} ({e.target_sets} sets × {e.measurement_type === 'reps' ? `${e.target_reps} reps` : `${e.target_time_seconds}s`}{e.is_bodyweight ? e.target_added_weight ? ` @ +${e.target_added_weight}kg` : ' @ Bodyweight' : ` @ ${e.target_weight}kg`})
+                              </div>
+                            );
+                          } else {
+                            const groupLabel = group.type === 'superset' ? 'Superset' : group.type === 'triset' ? 'Tri-set' : 'Circuit';
+                            return (
+                              <div key={group.id} className="border border-indigo-150 dark:border-indigo-900/50 bg-indigo-50/10 dark:bg-indigo-955/5 p-2.5 rounded-xl my-1.5">
+                                <span className="text-[9px] uppercase tracking-wider font-extrabold text-indigo-650 dark:text-indigo-400">{groupLabel} ({group.exercises.length} bài)</span>
+                                <div className="space-y-0.5 mt-1 pl-2 border-l border-indigo-200 dark:border-indigo-850">
+                                  {group.exercises.map((e, eIdx) => (
+                                    <div key={e.id} className="text-slate-650 dark:text-slate-350">
+                                      {String.fromCharCode(65 + eIdx)}. {e.exercise_name} ({e.target_sets} sets × {e.measurement_type === 'reps' ? `${e.target_reps} reps` : `${e.target_time_seconds}s`}{e.is_bodyweight ? e.target_added_weight ? ` @ +${e.target_added_weight}kg` : ' @ Bodyweight' : ` @ ${e.target_weight}kg`})
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          }
+                        })
                       )}
                     </div>
                   )}

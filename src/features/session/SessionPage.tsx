@@ -14,6 +14,8 @@ import { db } from '../../db';
 import type { SessionExercise, Exercise } from '../../db/types';
 import { useWakeLock } from '../../hooks/useWakeLock';
 import ExerciseSessionDetail from './ExerciseSessionDetail';
+import { groupExercises } from '../../utils/grouping';
+import GroupSessionDetail from './GroupSessionDetail';
 
 export default function SessionPage() {
   const navigate = useNavigate();
@@ -33,6 +35,7 @@ export default function SessionPage() {
   const [isInitializing, setIsInitializing] = useState(true);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [activeSessionEx, setActiveSessionEx] = useState<(SessionExercise & { exercise: Exercise }) | null>(null);
+  const [activeGroupExs, setActiveGroupExs] = useState<Array<SessionExercise & { exercise: Exercise }> | null>(null);
   
   // Exercise Picker Modal
   const [showAddExerciseModal, setShowAddExerciseModal] = useState(false);
@@ -124,6 +127,17 @@ export default function SessionPage() {
       <div className="flex items-center justify-center min-h-screen bg-slate-50 dark:bg-slate-950">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
       </div>
+    );
+  }
+
+  // If detailed logging is open for a group, render the full-screen view
+  if (activeGroupExs) {
+    return (
+      <GroupSessionDetail 
+        sessionExercises={activeGroupExs}
+        cycleDayId={session.cycle_day_id}
+        onClose={() => setActiveGroupExs(null)}
+      />
     );
   }
 
@@ -244,14 +258,28 @@ export default function SessionPage() {
       {/* Workout Exercises Checklist */}
       <div className="space-y-2.5 flex-1">
         {sessionExercises && sessionExercises.length > 0 ? (
-          sessionExercises.map((se, idx) => (
-            <ExerciseRow 
-              key={se.id} 
-              se={se} 
-              index={idx}
-              onClick={() => setActiveSessionEx(se)} 
-            />
-          ))
+          groupExercises(sessionExercises).map((group, idx) => {
+            if (group.type === 'single') {
+              const se = group.exercises[0];
+              return (
+                <ExerciseRow 
+                  key={se.id} 
+                  se={se} 
+                  index={idx}
+                  onClick={() => setActiveSessionEx(se)} 
+                />
+              );
+            } else {
+              return (
+                <GroupedExerciseCard 
+                  key={group.id} 
+                  group={group} 
+                  index={idx}
+                  onClick={() => setActiveGroupExs(group.exercises)} 
+                />
+              );
+            }
+          })
         ) : (
           <div className="flex flex-col items-center justify-center p-12 text-center border-2 border-dashed rounded-3xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
             <BookOpen className="w-12 h-12 text-slate-350 dark:text-slate-750 stroke-1 mb-2" />
@@ -425,5 +453,88 @@ function Trash2Icon(props: React.SVGProps<SVGSVGElement>) {
       <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
       <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
     </svg>
+  );
+}
+
+function GroupedExerciseCard({
+  group,
+  index,
+  onClick
+}: {
+  group: any;
+  index: number;
+  onClick: () => void;
+}) {
+  const sessionExerciseIds = group.exercises.map((se: any) => se.id);
+  const sets = useLiveQuery(
+    () => db.sets.where('session_exercise_id').anyOf(sessionExerciseIds).toArray(),
+    [sessionExerciseIds],
+    []
+  );
+
+  const groupLabel = group.type === 'superset' ? 'Superset' : group.type === 'triset' ? 'Tri-set' : 'Circuit';
+  const isCompleted = group.exercises.every((se: any) => se.completed);
+
+  return (
+    <div
+      onClick={onClick}
+      className={`
+        p-4 bg-white dark:bg-slate-900 border rounded-2xl cursor-pointer shadow-sm hover:shadow transition-all duration-200 space-y-3.5
+        ${isCompleted 
+          ? 'border-emerald-250 dark:border-emerald-900/30 bg-emerald-50/5 dark:bg-emerald-950/5' 
+          : 'border-indigo-150 dark:border-indigo-900/35 hover:border-indigo-350 dark:hover:border-indigo-700'
+        }
+      `}
+    >
+      {/* Header */}
+      <div className="flex justify-between items-center text-[10px] font-bold">
+        <div className="flex items-center gap-2">
+          <div className={`w-6 h-6 rounded-full font-black text-xs flex items-center justify-center ${
+            isCompleted 
+              ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-600' 
+              : 'bg-indigo-100 dark:bg-indigo-950 text-indigo-650'
+          }`}>
+            {index + 1}
+          </div>
+          <span className="uppercase tracking-wider text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-2 py-0.5 rounded border border-indigo-100 dark:border-indigo-900/30">
+            {groupLabel}
+          </span>
+        </div>
+
+        {isCompleted ? (
+          <span className="text-[9px] font-bold bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-md border border-emerald-250 dark:border-emerald-900/30 flex items-center gap-0.5">
+            <CheckCircle2 className="w-3 h-3 fill-emerald-500 text-white" />
+            <span>Xong</span>
+          </span>
+        ) : (
+          <span className="text-[9px] font-bold bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 px-2 py-0.5 rounded-md border border-indigo-100 dark:border-indigo-900/30 flex items-center">
+            <span>Tập nhóm</span>
+            <ChevronRight className="w-3 h-3" />
+          </span>
+        )}
+      </div>
+
+      {/* Sub-exercises checklist */}
+      <div className="space-y-2 pl-2 border-l border-indigo-200 dark:border-indigo-850">
+        {group.exercises.map((se: any, subIdx: number) => {
+          const exSets = sets.filter(s => s.session_exercise_id === se.id);
+          return (
+            <div key={se.id} className="flex justify-between items-center text-xs">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-[10px] font-bold text-slate-400">
+                  {String.fromCharCode(65 + subIdx)}.
+                </span>
+                <span className={`font-semibold truncate ${se.completed ? 'text-slate-400 line-through' : 'text-slate-750 dark:text-slate-200'}`}>
+                  {se.exercise.name}
+                </span>
+              </div>
+              <span className="text-[10px] font-medium text-slate-400 shrink-0">
+                {exSets.length} sets completed
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }

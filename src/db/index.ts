@@ -34,6 +34,11 @@ export class WorkoutDB extends Dexie {
       activityLogs: 'id, date, activity_type',
       settings: 'id'
     });
+
+    this.version(2).stores({
+      cycleDayExercises: 'id, cycle_day_id, exercise_id, order, group_id',
+      sessionExercises: 'id, session_id, exercise_id, order, group_id'
+    });
   }
 }
 

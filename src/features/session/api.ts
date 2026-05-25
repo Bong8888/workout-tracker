@@ -45,6 +45,8 @@ export async function startSession(cycleDayId?: string): Promise<string> {
           exercise_id: cde.exercise_id,
           order: cde.order,
           completed: false,
+          group_id: cde.group_id,
+          group_type: cde.group_type,
         });
       }
     }
@@ -131,6 +133,7 @@ export async function addSetToExercise(data: {
   actual_time_seconds?: number;
   rest_duration_seconds?: number;
   is_bodyweight: boolean;
+  round_number?: number;
 }): Promise<string> {
   const id = crypto.randomUUID();
   let bodyweight: number | undefined;
@@ -151,6 +154,7 @@ export async function addSetToExercise(data: {
     rest_duration_seconds: data.rest_duration_seconds,
     completed: true,
     completed_at: new Date().toISOString(),
+    round_number: data.round_number,
   });
 
   return id;
