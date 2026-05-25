@@ -10,6 +10,8 @@ import ExerciseDetailPage from './features/exercises/ExerciseDetailPage';
 import ExerciseForm from './features/exercises/ExerciseForm';
 import StatsPage from './features/stats/StatsPage';
 import MePage from './features/me/MePage';
+import SessionPage from './features/session/SessionPage';
+import SessionSummary from './features/session/SessionSummary';
 import { seedIfEmpty } from './db/seed';
 
 function App() {
@@ -51,6 +53,9 @@ function App() {
             <Route path="/exercises/:id/edit" element={<ExerciseForm />} />
             <Route path="/stats" element={<StatsPage />} />
             <Route path="/me" element={<MePage />} />
+            <Route path="/session/new" element={<SessionPage />} />
+            <Route path="/session/:id" element={<SessionPage />} />
+            <Route path="/session/:id/summary" element={<SessionSummary />} />
           </Routes>
         </main>
         

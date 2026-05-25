@@ -4,12 +4,13 @@ import { Dumbbell, Repeat, BookOpen, BarChart3, User } from 'lucide-react';
 export default function BottomNav() {
   const location = useLocation();
 
-  // Hide bottom navigation on form/wizard routes to give them full-screen focus
+  // Hide bottom navigation on form/wizard/session routes to give them full-screen focus
   const hideOnRoutes = [
     /^\/cycles\/new\/?$/,
     /^\/cycles\/[^/]+\/edit\/?$/,
     /^\/exercises\/new\/?$/,
-    /^\/exercises\/[^/]+\/edit\/?$/
+    /^\/exercises\/[^/]+\/edit\/?$/,
+    /^\/session/
   ];
 
   const shouldHide = hideOnRoutes.some(regex => regex.test(location.pathname));

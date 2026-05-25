@@ -1,35 +1,56 @@
 import { useNavigate } from 'react-router-dom';
 import { Dumbbell, Calendar, Coffee, Play, PlusCircle, Sparkles, Activity, CheckCircle2 } from 'lucide-react';
 import { useTodayCycleDay } from '../cycles/api';
+import { useActiveSessionLive } from '../session/api';
 
 export default function TodayPage() {
   const navigate = useNavigate();
   const todayInfo = useTodayCycleDay();
+  const activeSession = useActiveSessionLive();
 
   // 1. STATE A: No Active Cycle
   if (!todayInfo) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[75vh] p-6 text-center animate-fade-in">
         <div className="p-4 bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 rounded-full mb-4 shadow-sm">
-          <Calendar className="w-12 h-12" />
+          {activeSession ? (
+            <Play className="w-12 h-12 text-emerald-500 fill-emerald-500/20" />
+          ) : (
+            <Calendar className="w-12 h-12" />
+          )}
         </div>
-        <h1 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">Chưa có lịch tập kích hoạt</h1>
+        <h1 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">
+          {activeSession ? 'Buổi tập đang diễn ra' : 'Chưa có lịch tập kích hoạt'}
+        </h1>
         <p className="text-slate-500 dark:text-slate-400 max-w-sm mb-6 text-sm">
-          Để bắt đầu ghi chép các buổi tập, hãy tạo lịch tập (vòng tập) mới hoặc kích hoạt lịch tập hiện có của bạn.
+          {activeSession
+            ? 'Bạn đang có một buổi tập tự do chưa hoàn thành. Hãy tiếp tục tập luyện để ghi chép kết quả.'
+            : 'Để bắt đầu ghi chép các buổi tập, hãy tạo lịch tập (vòng tập) mới hoặc kích hoạt lịch tập hiện có của bạn.'}
         </p>
         <div className="flex flex-col w-full gap-2 px-6">
-          <button
-            onClick={() => navigate('/cycles/new')}
-            className="w-full bg-gradient-to-r from-primary-600 to-indigo-600 hover:from-primary-700 hover:to-indigo-700 text-white font-bold py-3 rounded-xl shadow-md transition-all active:scale-98 text-sm"
-          >
-            Tạo vòng tập đầu tiên
-          </button>
-          <button
-            onClick={() => navigate('/cycles')}
-            className="w-full border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-850 font-bold py-2.5 rounded-xl text-xs transition-colors"
-          >
-            Xem danh sách lịch tập
-          </button>
+          {activeSession ? (
+            <button
+              onClick={() => navigate(`/session/${activeSession.id}`)}
+              className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold py-3 rounded-xl shadow-md transition-all active:scale-98 text-sm"
+            >
+              Tiếp tục buổi tập
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={() => navigate('/cycles/new')}
+                className="w-full bg-gradient-to-r from-primary-600 to-indigo-600 hover:from-primary-700 hover:to-indigo-700 text-white font-bold py-3 rounded-xl shadow-md transition-all active:scale-98 text-sm"
+              >
+                Tạo vòng tập đầu tiên
+              </button>
+              <button
+                onClick={() => navigate('/cycles')}
+                className="w-full border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-850 font-bold py-2.5 rounded-xl text-xs transition-colors"
+              >
+                Xem danh sách lịch tập
+              </button>
+            </>
+          )}
         </div>
       </div>
     );
@@ -43,40 +64,57 @@ export default function TodayPage() {
       <div className="p-4 flex flex-col min-h-[75vh] animate-fade-in justify-center">
         <div className="text-center max-w-sm mx-auto space-y-4">
           <div className="p-4 bg-teal-50 dark:bg-teal-950/20 text-teal-600 dark:text-teal-400 rounded-full inline-block shadow-inner">
-            <Coffee className="w-12 h-12" />
+            {activeSession ? (
+              <Play className="w-12 h-12 text-emerald-500 fill-emerald-500/20" />
+            ) : (
+              <Coffee className="w-12 h-12" />
+            )}
           </div>
           <h1 className="text-2xl font-bold text-slate-800 dark:text-white">
-            Hôm nay là Ngày Nghỉ!
+            {activeSession ? 'Buổi tập đang diễn ra!' : 'Hôm nay là Ngày Nghỉ!'}
           </h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed">
-            Hôm nay là <span className="font-semibold text-slate-700 dark:text-slate-300">{day.name}</span> trong vòng tập **{cycle.name}**. Hãy nghỉ ngơi đầy đủ để phục hồi cơ bắp!
+            {activeSession
+              ? `Bạn đang tập luyện buổi tập tự do trong ngày nghỉ.`
+              : `Hôm nay là ${day.name} trong vòng tập **${cycle.name}**. Hãy nghỉ ngơi đầy đủ để phục hồi cơ bắp!`}
           </p>
           
-          <div className="border border-dashed border-slate-200 dark:border-slate-800 p-4 rounded-2xl bg-white dark:bg-slate-900 shadow-sm text-left">
-            <h4 className="font-bold text-xs text-slate-700 dark:text-slate-200 mb-1 flex items-center gap-1.5">
-              <Activity className="w-4 h-4 text-teal-500" />
-              <span>Gợi ý cho bạn:</span>
-            </h4>
-            <ul className="text-xs text-slate-500 dark:text-slate-400 space-y-1 list-disc pl-4 leading-relaxed">
-              <li>Đi bộ nhẹ nhàng hoặc giãn cơ tích cực</li>
-              <li>Uống đủ nước và ngủ đủ giấc</li>
-              <li>Nạp đủ protein phục hồi cơ bắp</li>
-            </ul>
-          </div>
+          {activeSession ? (
+            <button
+              onClick={() => navigate(`/session/${activeSession.id}`)}
+              className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold py-3 rounded-xl shadow-md transition-all active:scale-98 text-sm"
+            >
+              Tiếp tục buổi tập
+            </button>
+          ) : (
+            <>
+              <div className="border border-dashed border-slate-200 dark:border-slate-800 p-4 rounded-2xl bg-white dark:bg-slate-900 shadow-sm text-left">
+                <h4 className="font-bold text-xs text-slate-700 dark:text-slate-200 mb-1 flex items-center gap-1.5">
+                  <Activity className="w-4 h-4 text-teal-500" />
+                  <span>Gợi ý cho bạn:</span>
+                </h4>
+                <ul className="text-xs text-slate-500 dark:text-slate-400 space-y-1 list-disc pl-4 leading-relaxed">
+                  <li>Đi bộ nhẹ nhàng hoặc giãn cơ tích cực</li>
+                  <li>Uống đủ nước và ngủ đủ giấc</li>
+                  <li>Nạp đủ protein phục hồi cơ bắp</li>
+                </ul>
+              </div>
 
-          <button
-            onClick={() => alert('Chức năng ghi chép hoạt động tự do ngoài lịch tập sẽ được tích hợp ở Phase 6.')}
-            className="w-full max-w-xs mx-auto bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-300 font-bold py-2.5 px-4 rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5"
-          >
-            <PlusCircle className="w-4 h-4" />
-            <span>Ghi nhận hoạt động tự do</span>
-          </button>
+              <button
+                onClick={() => navigate('/session/new')}
+                className="w-full max-w-xs mx-auto bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-300 font-bold py-2.5 px-4 rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5"
+              >
+                <PlusCircle className="w-4 h-4" />
+                <span>Bắt đầu buổi tập tự do</span>
+              </button>
+            </>
+          )}
         </div>
       </div>
     );
   }
 
-  // 3. STATE C: Workout Day (not started)
+  // 3. STATE C: Workout Day (not started or active)
   return (
     <div className="p-4 flex flex-col min-h-screen animate-fade-in">
       {/* Today Suggestion Card */}
@@ -162,13 +200,23 @@ export default function TodayPage() {
       {/* Floating Action CTA */}
       <div className="fixed bottom-16 left-0 right-0 z-40 p-4 bg-gradient-to-t from-white dark:from-slate-900 to-transparent">
         <div className="max-w-md mx-auto">
-          <button
-            onClick={() => alert('Giao diện bắt đầu tập luyện chi tiết (Timer, Wake Lock, Sets entry) sẽ được tích hợp đầy đủ ở Phase 5.')}
-            className="w-full bg-gradient-to-r from-primary-600 to-indigo-650 hover:from-primary-700 hover:to-indigo-700 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg transition-all active:scale-98 flex items-center justify-center gap-2 text-sm"
-          >
-            <Play className="w-4 h-4 fill-white" />
-            <span>Bắt đầu tập luyện</span>
-          </button>
+          {activeSession ? (
+            <button
+              onClick={() => navigate(`/session/${activeSession.id}`)}
+              className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg transition-all active:scale-98 flex items-center justify-center gap-2 text-sm"
+            >
+              <Play className="w-4 h-4 fill-white" />
+              <span>Tiếp tục buổi tập</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => navigate(`/session/new?cycleDayId=${day.id}`)}
+              className="w-full bg-gradient-to-r from-primary-600 to-indigo-650 hover:from-primary-700 hover:to-indigo-700 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg transition-all active:scale-98 flex items-center justify-center gap-2 text-sm"
+            >
+              <Play className="w-4 h-4 fill-white" />
+              <span>Bắt đầu tập luyện</span>
+            </button>
+          )}
         </div>
       </div>
     </div>
