@@ -276,7 +276,7 @@ export async function syncDataToSheets(): Promise<any> {
       const input = document.createElement('input');
       input.type = 'hidden';
       input.name = 'payload';
-      input.value = JSON.stringify(payload);
+      input.value = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
       form.appendChild(input);
 
       // Submit
