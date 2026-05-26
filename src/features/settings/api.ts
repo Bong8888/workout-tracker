@@ -193,8 +193,8 @@ export async function getAppStats(): Promise<AppStats> {
   };
 }
 
-export async function syncDataToSheets(): Promise<Response> {
-  const SHEET_URL = 'https://script.google.com/macros/s/AKfycbR2aP_GWBoP4q0cuszgO8VSK_QtXKvyLjU7JSfcHD4Zl8qowY3HPgUaU-5VT2tay_0/exec';
+export async function syncDataToSheets(): Promise<any> {
+  const SHEET_URL = 'https://script.google.com/macros/s/AKfycbxR2aP_GWBoP4q0cuszgO8VSK_QtXKvyLjU7JSfcHD4Zl8qowY3HPgUaU-5VT2tay_0/exec';
 
   const sessions = await db.sessions.toArray();
   const allSets = await db.sets.toArray();
@@ -257,12 +257,41 @@ export async function syncDataToSheets(): Promise<Response> {
     })),
   };
 
-  const response = await fetch(SHEET_URL, {
-    method: 'POST',
-    mode: 'no-cors',
-    headers: { 'Content-Type': 'text/plain' },
-    body: JSON.stringify(payload),
-  });
+  // Gửi bằng hidden iframe + form (BYPASS CORS hoàn toàn)
+  return new Promise((resolve, reject) => {
+    try {
+      // Tạo hidden iframe
+      const iframe = document.createElement('iframe');
+      iframe.name = 'google-sheets-sync-frame';
+      iframe.style.display = 'none';
+      document.body.appendChild(iframe);
 
-  return response;
+      // Tạo form
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = SHEET_URL;
+      form.target = 'google-sheets-sync-frame';
+
+      // Thêm data vào hidden input
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'payload';
+      input.value = JSON.stringify(payload);
+      form.appendChild(input);
+
+      // Submit
+      document.body.appendChild(form);
+      form.submit();
+
+      // Cleanup sau 5 giây
+      setTimeout(() => {
+        form.remove();
+        iframe.remove();
+        resolve(true);
+      }, 5000);
+
+    } catch (error) {
+      reject(error);
+    }
+  });
 }

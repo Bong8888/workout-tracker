@@ -170,7 +170,7 @@ export default function MePage() {
       await syncDataToSheets();
       await updateSettings({ last_sync_at: new Date().toISOString() });
       setToastType('success');
-      setToast('Đã gửi dữ liệu. Mở Google Sheet để kiểm tra.');
+      setToast('Đã gửi dữ liệu lên Google Sheets. Mở Sheet để kiểm tra.');
       setTimeout(() => setToast(''), 3000);
     } catch (err) {
       console.error(err);
