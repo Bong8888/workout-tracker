@@ -150,4 +150,5 @@ export interface AppSettings {
   default_bodyweight_kg?: number;   // fallback nếu chưa có BodyMetric
   haptic_enabled: boolean;
   last_backup_at?: string;
+  last_sync_at?: string;
 }

@@ -1002,7 +1002,7 @@ export default function CycleForm() {
                                     <input
                                       type="number"
                                       value={ex.target_sets}
-                                      onChange={(e) => handleUpdateExerciseTarget(dIdx, flatIdx, 'target_sets', Number(e.target.value))}
+                                      onChange={(e) => handleUpdateExerciseTarget(dIdx, flatIdx, 'target_sets', e.target.value)}
                                       min={1}
                                       className="w-full px-2 py-1 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 rounded-lg text-center font-bold"
                                     />
@@ -1015,7 +1015,7 @@ export default function CycleForm() {
                                       <input
                                         type="number"
                                         value={ex.target_reps || ''}
-                                        onChange={(e) => handleUpdateExerciseTarget(dIdx, flatIdx, 'target_reps', Number(e.target.value))}
+                                        onChange={(e) => handleUpdateExerciseTarget(dIdx, flatIdx, 'target_reps', e.target.value)}
                                         min={1}
                                         className="w-full px-2 py-1 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 rounded-lg text-center font-bold"
                                       />
@@ -1026,7 +1026,7 @@ export default function CycleForm() {
                                       <input
                                         type="number"
                                         value={ex.target_time_seconds || ''}
-                                        onChange={(e) => handleUpdateExerciseTarget(dIdx, flatIdx, 'target_time_seconds', Number(e.target.value))}
+                                        onChange={(e) => handleUpdateExerciseTarget(dIdx, flatIdx, 'target_time_seconds', e.target.value)}
                                         min={1}
                                         className="w-full px-2 py-1 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 rounded-lg text-center font-bold"
                                       />
@@ -1040,7 +1040,7 @@ export default function CycleForm() {
                                       <input
                                         type="number"
                                         value={ex.target_added_weight ?? ''}
-                                        onChange={(e) => handleUpdateExerciseTarget(dIdx, flatIdx, 'target_added_weight', Number(e.target.value))}
+                                        onChange={(e) => handleUpdateExerciseTarget(dIdx, flatIdx, 'target_added_weight', e.target.value)}
                                         min={0}
                                         className="w-full px-2 py-1 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 rounded-lg text-center font-bold"
                                       />
@@ -1051,7 +1051,7 @@ export default function CycleForm() {
                                       <input
                                         type="number"
                                         value={ex.target_weight ?? ''}
-                                        onChange={(e) => handleUpdateExerciseTarget(dIdx, flatIdx, 'target_weight', Number(e.target.value))}
+                                        onChange={(e) => handleUpdateExerciseTarget(dIdx, flatIdx, 'target_weight', e.target.value)}
                                         min={0}
                                         className="w-full px-2 py-1 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 rounded-lg text-center font-bold"
                                       />
@@ -1185,7 +1185,7 @@ export default function CycleForm() {
                                             <input
                                               type="number"
                                               value={ex.target_sets}
-                                              onChange={(e) => handleUpdateExerciseTarget(dIdx, flatIdx, 'target_sets', Number(e.target.value))}
+                                              onChange={(e) => handleUpdateExerciseTarget(dIdx, flatIdx, 'target_sets', e.target.value)}
                                               min={1}
                                               className="w-full px-1.5 py-0.5 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-955 rounded text-center font-bold text-[11px]"
                                             />
@@ -1197,7 +1197,7 @@ export default function CycleForm() {
                                               <input
                                                 type="number"
                                                 value={ex.target_reps || ''}
-                                                onChange={(e) => handleUpdateExerciseTarget(dIdx, flatIdx, 'target_reps', Number(e.target.value))}
+                                                onChange={(e) => handleUpdateExerciseTarget(dIdx, flatIdx, 'target_reps', e.target.value)}
                                                 min={1}
                                                 className="w-full px-1.5 py-0.5 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-955 rounded text-center font-bold text-[11px]"
                                               />
@@ -1208,7 +1208,7 @@ export default function CycleForm() {
                                               <input
                                                 type="number"
                                                 value={ex.target_time_seconds || ''}
-                                                onChange={(e) => handleUpdateExerciseTarget(dIdx, flatIdx, 'target_time_seconds', Number(e.target.value))}
+                                                onChange={(e) => handleUpdateExerciseTarget(dIdx, flatIdx, 'target_time_seconds', e.target.value)}
                                                 min={1}
                                                 className="w-full px-1.5 py-0.5 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-955 rounded text-center font-bold text-[11px]"
                                               />
@@ -1221,7 +1221,7 @@ export default function CycleForm() {
                                               <input
                                                 type="number"
                                                 value={ex.target_added_weight ?? ''}
-                                                onChange={(e) => handleUpdateExerciseTarget(dIdx, flatIdx, 'target_added_weight', Number(e.target.value))}
+                                                onChange={(e) => handleUpdateExerciseTarget(dIdx, flatIdx, 'target_added_weight', e.target.value)}
                                                 min={0}
                                                 className="w-full px-1.5 py-0.5 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-955 rounded text-center font-bold text-[11px]"
                                               />
@@ -1232,7 +1232,7 @@ export default function CycleForm() {
                                               <input
                                                 type="number"
                                                 value={ex.target_weight ?? ''}
-                                                onChange={(e) => handleUpdateExerciseTarget(dIdx, flatIdx, 'target_weight', Number(e.target.value))}
+                                                onChange={(e) => handleUpdateExerciseTarget(dIdx, flatIdx, 'target_weight', e.target.value)}
                                                 min={0}
                                                 className="w-full px-1.5 py-0.5 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-955 rounded text-center font-bold text-[11px]"
                                               />

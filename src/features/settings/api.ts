@@ -193,21 +193,75 @@ export async function getAppStats(): Promise<AppStats> {
   };
 }
 
-export async function syncDataToSheets(): Promise<void> {
+export async function syncDataToSheets(): Promise<Response> {
+  const SHEET_URL = 'https://script.google.com/macros/s/AKfycbR2aP_GWBoP4q0cuszgO8VSK_QtXKvyLjU7JSfcHD4Zl8qowY3HPgUaU-5VT2tay_0/exec';
+
+  const sessions = await db.sessions.toArray();
+  const allSets = await db.sets.toArray();
+  const bodyMetrics = await db.bodyMetrics.toArray();
+  const activities = await db.activityLogs.toArray();
+  const cycles = await db.trainingCycles.toArray();
+
+  // Enrich sets with exercise name and session date
+  const enrichedSets = [];
+  for (const set of allSets) {
+    const sessionEx = await db.sessionExercises.get(set.session_exercise_id);
+    if (!sessionEx) continue;
+    const exercise = await db.exercises.get(sessionEx.exercise_id);
+    const session = await db.sessions.get(sessionEx.session_id);
+    enrichedSets.push({
+      id: set.id,
+      exercise_name: exercise?.name || 'Unknown',
+      set_number: set.set_number,
+      actual_reps: set.actual_reps || '',
+      actual_weight: set.actual_weight || '',
+      actual_added_weight: set.actual_added_weight || '',
+      actual_time_seconds: set.actual_time_seconds || '',
+      bodyweight_at_time: set.bodyweight_at_time || '',
+      rest_duration_seconds: set.rest_duration_seconds || '',
+      session_date: session?.date || '',
+    });
+  }
+
   const payload = {
-    sessions: await db.sessions.toArray(),
-    sets: await db.sets.toArray(),
-    bodyMetrics: await db.bodyMetrics.toArray(),
-    activities: await db.activityLogs.toArray(),
-    cycles: await db.trainingCycles.toArray(),
+    sessions: sessions.map(s => ({
+      id: s.id,
+      date: s.date,
+      started_at: s.started_at,
+      ended_at: s.ended_at || '',
+      total_duration_minutes: s.total_duration_seconds ? Math.round(s.total_duration_seconds / 60) : '',
+      notes: s.notes || '',
+      cycle_day_id: s.cycle_day_id || '',
+    })),
+    sets: enrichedSets,
+    bodyMetrics: bodyMetrics.map(m => ({
+      id: m.id,
+      date: m.date,
+      weight_kg: m.weight_kg,
+      body_fat_percent: m.body_fat_percent || '',
+      notes: m.notes || '',
+    })),
+    activities: activities.map(a => ({
+      id: a.id,
+      date: a.date,
+      activity_type: a.activity_type,
+      duration_minutes: a.duration_minutes,
+      notes: a.notes || '',
+    })),
+    cycles: cycles.map(c => ({
+      id: c.id,
+      name: c.name,
+      description: c.description || '',
+      start_date: c.start_date,
+      is_active: c.is_active,
+    })),
   };
 
-  await fetch('https://script.google.com/macros/s/AKfycbw2Seq-0gyI6jlygv0tC1gRoYnIiYH-qEXhh7iiUPvqU9LFdBboYVDOJhZewFMPta2y/exec', {
+  const response = await fetch(SHEET_URL, {
     method: 'POST',
-    mode: 'no-cors',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'text/plain' },
     body: JSON.stringify(payload),
   });
+
+  return response;
 }

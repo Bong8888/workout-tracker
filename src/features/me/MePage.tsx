@@ -167,9 +167,14 @@ export default function MePage() {
   const handleSyncSheets = async () => {
     setIsSyncing(true);
     try {
-      await syncDataToSheets();
-      setToastType('success');
-      setToast('Đồng bộ dữ liệu Google Sheets thành công!');
+      const response = await syncDataToSheets();
+      if (response.ok) {
+        await updateSettings({ last_sync_at: new Date().toISOString() });
+        setToastType('success');
+        setToast('Đồng bộ dữ liệu Google Sheets thành công!');
+      } else {
+        throw new Error('Server returned status: ' + response.status);
+      }
       setTimeout(() => setToast(''), 3000);
     } catch (err) {
       console.error(err);
@@ -806,14 +811,19 @@ export default function MePage() {
           <button
             onClick={handleSyncSheets}
             disabled={isSyncing}
-            className="p-3 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/20 text-emerald-750 dark:text-emerald-400 font-extrabold rounded-2xl border border-emerald-100 dark:border-emerald-900/30 flex flex-col items-center justify-center gap-1.5 transition-all text-center col-span-2 disabled:opacity-50"
+            className="p-3 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/20 text-emerald-750 dark:text-emerald-400 font-extrabold rounded-2xl border border-emerald-100 dark:border-emerald-900/30 flex flex-col items-center justify-center gap-1 transition-all text-center col-span-2 disabled:opacity-50"
           >
             {isSyncing ? (
               <RefreshCw className="w-5 h-5 animate-spin" />
             ) : (
               <CloudUpload className="w-5 h-5" />
             )}
-            <span>{isSyncing ? 'Đang đồng bộ...' : 'Sync to Google Sheets'}</span>
+            <span className="font-extrabold">{isSyncing ? 'Đang đồng bộ...' : 'Sync to Google Sheets'}</span>
+            {settings?.last_sync_at && (
+              <span className="text-[9px] font-normal text-emerald-650 dark:text-emerald-500/80">
+                Đồng bộ lần cuối: {new Date(settings.last_sync_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false})} {new Date(settings.last_sync_at).toLocaleDateString('vi-VN', {day: '2-digit', month: '2-digit', year: 'numeric'})}
+              </span>
+            )}
           </button>
 
           <button

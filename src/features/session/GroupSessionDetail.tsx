@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Plus, Trash2, Dumbbell, Clock, AlertTriangle, Sparkles, CheckCircle2, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Dumbbell, AlertTriangle, Sparkles, CheckCircle2 } from 'lucide-react';
 import type { SessionExercise, Exercise, SetEntry } from '../../db/types';
 import { 
   addSetToExercise, 
@@ -48,15 +48,17 @@ export default function GroupSessionDetail({
   const [showBodyweightModal, setShowBodyweightModal] = useState(false);
   const [bodyweightInput, setBodyweightInput] = useState('70');
 
-  // Input states for active exercise logging
-  const [repsInput, setRepsInput] = useState('');
-  const [weightInput, setWeightInput] = useState('');
-  const [addedWeightInput, setAddedWeightInput] = useState('');
-  const [timeInput, setTimeInput] = useState('');
+  const [roundInputs, setRoundInputs] = useState<{
+    [seId: string]: {
+      reps: string;
+      weight: string;
+      addedWeight: string;
+      time: string;
+    };
+  }>({});
 
   // active state
   const [currentRound, setCurrentRound] = useState(1);
-  const [activeExerciseIndex, setActiveExerciseIndex] = useState(0);
   const [targetRoundsCount, setTargetRoundsCount] = useState(3);
 
   // Workout timer mode state
@@ -70,14 +72,10 @@ export default function GroupSessionDetail({
   const [showWarningModal, setShowWarningModal] = useState(false);
   const [newPRToast, setNewPRToast] = useState<string | null>(null);
 
-  const activeSE = sessionExercises[activeExerciseIndex];
-  const activeEx = activeSE?.exercise;
-  const activeExTargets = activeEx ? exercisesTargets[activeEx.id] : undefined;
-
   // Time-based set timer hook
   const setTimer = useTimer({
     mode: workoutTimerMode,
-    initialSeconds: activeExTargets?.target_time_seconds || 60,
+    initialSeconds: 60,
   });
 
   // Load targets & settings
@@ -133,102 +131,75 @@ export default function GroupSessionDetail({
     }
   }, [cycleDayId, sessionExercises]);
 
-  // Handle active exercise input suggestions
+  // Reset inputs on round change to trigger re-load of suggestions
   useEffect(() => {
-    if (!activeSE || !activeEx) return;
+    setRoundInputs({});
+  }, [currentRound]);
 
-    // Check if there is already a logged set for this exercise in the current round
-    const activeExSets = sets.filter(s => s.session_exercise_id === activeSE.id);
-    const currentRoundSet = activeExSets.find(s => s.round_number === currentRound);
-    const prevRoundSet = activeExSets.find(s => s.round_number === currentRound - 1) 
-      || activeExSets[activeExSets.length - 1]; // fallback to last logged set in session
+  // Load suggestions for each exercise in the current round
+  useEffect(() => {
+    if (!sets) return;
 
-    if (currentRoundSet) {
-      // If we are editing/viewing a set already logged in this round
-      if (activeEx.measurement_type === 'reps') {
-        setRepsInput((currentRoundSet.actual_reps ?? 10).toString());
-        if (activeEx.is_bodyweight) {
-          setAddedWeightInput((currentRoundSet.actual_added_weight ?? 0).toString());
-        } else {
-          setWeightInput((currentRoundSet.actual_weight ?? 20).toString());
-        }
-      } else {
-        setTimeInput((currentRoundSet.actual_time_seconds ?? 60).toString());
-      }
-    } else if (prevRoundSet) {
-      // Suggest from the last logged/previous round set
-      if (activeEx.measurement_type === 'reps') {
-        setRepsInput((prevRoundSet.actual_reps ?? 10).toString());
-        if (activeEx.is_bodyweight) {
-          setAddedWeightInput((prevRoundSet.actual_added_weight ?? 0).toString());
-        } else {
-          setWeightInput((prevRoundSet.actual_weight ?? 20).toString());
-        }
-      } else {
-        setTimeInput((prevRoundSet.actual_time_seconds ?? 60).toString());
-      }
-    } else {
-      // Suggest from previous workout session
-      getLastSetForExercise(activeEx.id).then(lastSet => {
-        if (lastSet) {
-          if (activeEx.measurement_type === 'reps') {
-            setRepsInput((lastSet.actual_reps ?? 10).toString());
-            if (activeEx.is_bodyweight) {
-              setAddedWeightInput((lastSet.actual_added_weight ?? 0).toString());
-            } else {
-              setWeightInput((lastSet.actual_weight ?? 20).toString());
-            }
-          } else {
-            setTimeInput((lastSet.actual_time_seconds ?? 60).toString());
-          }
-        } else {
-          // Suggest from target guidelines
-          const tReps = activeExTargets?.target_reps ?? 10;
-          const tWeight = activeExTargets?.target_weight ?? 20;
-          const tAddedWeight = activeExTargets?.target_added_weight ?? 0;
-          const tTime = activeExTargets?.target_time_seconds ?? 60;
+    const loadSuggestions = async () => {
+      const newInputs = { ...roundInputs };
+      let changed = false;
 
-          if (activeEx.measurement_type === 'reps') {
-            setRepsInput(tReps.toString());
-            if (activeEx.is_bodyweight) {
-              setAddedWeightInput(tAddedWeight.toString());
-            } else {
-              setWeightInput(tWeight.toString());
-            }
-          } else {
-            setTimeInput(tTime.toString());
+      for (const se of sessionExercises) {
+        if (newInputs[se.id]) continue;
+
+        changed = true;
+        const activeEx = se.exercise;
+        const activeExTargets = exercisesTargets[activeEx.id];
+        const activeExSets = sets.filter(s => s.session_exercise_id === se.id);
+        const prevRoundSet = activeExSets.find(s => s.round_number === currentRound - 1) 
+          || activeExSets[activeExSets.length - 1];
+
+        let reps = '10';
+        let weight = '20';
+        let addedWeight = '0';
+        let time = '60';
+
+        if (prevRoundSet) {
+          if (prevRoundSet.actual_reps !== undefined) reps = prevRoundSet.actual_reps.toString();
+          if (prevRoundSet.actual_weight !== undefined) weight = prevRoundSet.actual_weight.toString();
+          if (prevRoundSet.actual_added_weight !== undefined) addedWeight = prevRoundSet.actual_added_weight.toString();
+          if (prevRoundSet.actual_time_seconds !== undefined) time = prevRoundSet.actual_time_seconds.toString();
+        } else {
+          const lastSet = await getLastSetForExercise(activeEx.id);
+          if (lastSet) {
+            if (lastSet.actual_reps !== undefined) reps = lastSet.actual_reps.toString();
+            if (lastSet.actual_weight !== undefined) weight = lastSet.actual_weight.toString();
+            if (lastSet.actual_added_weight !== undefined) addedWeight = lastSet.actual_added_weight.toString();
+            if (lastSet.actual_time_seconds !== undefined) time = lastSet.actual_time_seconds.toString();
+          } else if (activeExTargets) {
+            if (activeExTargets.target_reps !== undefined) reps = activeExTargets.target_reps.toString();
+            if (activeExTargets.target_weight !== undefined) weight = activeExTargets.target_weight.toString();
+            if (activeExTargets.target_added_weight !== undefined) addedWeight = activeExTargets.target_added_weight.toString();
+            if (activeExTargets.target_time_seconds !== undefined) time = activeExTargets.target_time_seconds.toString();
           }
         }
-      });
-    }
 
-    // Reset set timer for time-based exercise
-    if (activeEx.measurement_type === 'time') {
-      setTimer.reset(activeExTargets?.target_time_seconds || 60);
-    }
-  }, [activeExerciseIndex, currentRound, activeSE, activeEx, activeExTargets, sets]);
+        newInputs[se.id] = { reps, weight, addedWeight, time };
+      }
 
-  // Adjust active exercise round when sets are logged
+      if (changed) {
+        setRoundInputs(newInputs);
+      }
+    };
+
+    loadSuggestions();
+  }, [sessionExercises, currentRound, exercisesTargets, sets]);
+
   // Automatically determine what round we are on based on completed sets in current session
   useEffect(() => {
     if (sets && sets.length > 0) {
-      // Find the highest round number logged so far
       const maxLoggedRound = Math.max(...sets.map(s => s.round_number || 0));
       if (maxLoggedRound > 0) {
-        // If all exercises in maxLoggedRound have been logged, set currentRound to maxLoggedRound + 1
         const setsInMaxRound = sets.filter(s => s.round_number === maxLoggedRound);
         if (setsInMaxRound.length >= sessionExercises.length) {
           setCurrentRound(maxLoggedRound + 1);
-          setActiveExerciseIndex(0);
         } else {
-          // We are still in maxLoggedRound, find the first exercise in this round that doesn't have a set
           setCurrentRound(maxLoggedRound);
-          const firstUnloggedIdx = sessionExercises.findIndex(se => 
-            !sets.some(s => s.session_exercise_id === se.id && s.round_number === maxLoggedRound)
-          );
-          if (firstUnloggedIdx !== -1) {
-            setActiveExerciseIndex(firstUnloggedIdx);
-          }
         }
       }
     }
@@ -249,9 +220,12 @@ export default function GroupSessionDetail({
     setShowBodyweightModal(false);
   };
 
-  const handleAddSet = async () => {
-    if (!activeSE || !activeEx) return;
+  const handleAddSetForExercise = async (se: SessionExercise & { exercise: Exercise }) => {
+    const inputs = roundInputs[se.id];
+    if (!inputs) return;
 
+    const activeEx = se.exercise;
+    
     // Bodyweight check
     if (activeEx.is_bodyweight) {
       const latestMetric = await db.bodyMetrics.orderBy('date').reverse().first();
@@ -264,31 +238,33 @@ export default function GroupSessionDetail({
       }
     }
 
-    const activeExSets = sets.filter(s => s.session_exercise_id === activeSE.id);
+    const activeExSets = sets.filter(s => s.session_exercise_id === se.id);
     const nextSetNumber = activeExSets.length + 1;
-    const actualReps = activeEx.measurement_type === 'reps' ? (parseInt(repsInput) || 10) : undefined;
-    const actualWeight = (!activeEx.is_bodyweight && activeEx.measurement_type === 'reps') ? (parseFloat(weightInput) || 0) : undefined;
-    const actualAddedWeight = (activeEx.is_bodyweight && activeEx.measurement_type === 'reps') ? (parseFloat(addedWeightInput) || 0) : undefined;
+    const actualReps = activeEx.measurement_type === 'reps' ? (parseInt(inputs.reps) || 10) : undefined;
+    const actualWeight = (!activeEx.is_bodyweight && activeEx.measurement_type === 'reps') ? (parseFloat(inputs.weight) || 0) : undefined;
+    const actualAddedWeight = (activeEx.is_bodyweight && activeEx.measurement_type === 'reps') ? (parseFloat(inputs.addedWeight) || 0) : undefined;
 
     let actualTimeSeconds: number | undefined;
     if (activeEx.measurement_type === 'time') {
-      const parsedTime = parseInt(timeInput);
+      const parsedTime = parseInt(inputs.time);
       if (!isNaN(parsedTime) && parsedTime > 0) {
         actualTimeSeconds = parsedTime;
       } else if (setTimer.seconds > 0) {
         if (workoutTimerMode === 'stopwatch') {
           actualTimeSeconds = setTimer.seconds;
         } else {
+          const activeExTargets = exercisesTargets[activeEx.id];
           const target = activeExTargets?.target_time_seconds ?? 60;
           actualTimeSeconds = Math.max(1, target - setTimer.seconds);
         }
       } else {
+        const activeExTargets = exercisesTargets[activeEx.id];
         actualTimeSeconds = activeExTargets?.target_time_seconds ?? 60;
       }
     }
 
     const data = {
-      session_exercise_id: activeSE.id,
+      session_exercise_id: se.id,
       set_number: nextSetNumber,
       actual_reps: actualReps,
       actual_weight: actualWeight,
@@ -306,7 +282,7 @@ export default function GroupSessionDetail({
       // Check PR
       const newSetObj: SetEntry = {
         id: setId,
-        session_exercise_id: activeSE.id,
+        session_exercise_id: se.id,
         set_number: nextSetNumber,
         actual_reps: actualReps,
         actual_weight: actualWeight,
@@ -324,32 +300,17 @@ export default function GroupSessionDetail({
         setTimeout(() => setNewPRToast(null), 3000);
       }
 
-      // Check if it is the last exercise in the round
-      if (activeExerciseIndex === sessionExercises.length - 1) {
-        // Round completed! Open rest timer
+      // Check if all exercises in the current round are completed
+      const updatedSets = [...sets, newSetObj];
+      const allDone = sessionExercises.every(ex => 
+        updatedSets.some(s => s.session_exercise_id === ex.id && s.round_number === currentRound)
+      );
+
+      if (allDone) {
         setShowRestTimer(true);
-        // Transition to next round (handled by the sets live-query effect, but we can also pre-emptively advance if wanted.
-        // Actually, the useEffect on sets will automatically adjust currentRound and activeExerciseIndex when db updates!)
-      } else {
-        // Move to next exercise in the round
-        setActiveExerciseIndex(activeExerciseIndex + 1);
       }
     } catch (err) {
       console.error(err);
-    }
-  };
-
-  const handleSkipExercise = () => {
-    const confirmSkip = window.confirm(`Bạn có chắc chắn muốn bỏ qua bài tập "${activeEx.name}" trong Round ${currentRound} không?`);
-    if (!confirmSkip) return;
-
-    if (activeExerciseIndex === sessionExercises.length - 1) {
-      // Last exercise of round, rest timer triggers and moves to next round
-      setShowRestTimer(true);
-      setCurrentRound(currentRound + 1);
-      setActiveExerciseIndex(0);
-    } else {
-      setActiveExerciseIndex(activeExerciseIndex + 1);
     }
   };
 
@@ -512,7 +473,7 @@ export default function GroupSessionDetail({
             <div className="text-right">
               <span className="text-slate-400 text-[10px] block uppercase tracking-wider font-bold">Trạng thái vòng</span>
               <span className="font-semibold text-slate-750 dark:text-slate-200 text-xs">
-                {activeExerciseIndex + 1}/{sessionExercises.length} bài
+                {sets.filter(s => s.round_number === currentRound).length}/{sessionExercises.length} bài
               </span>
             </div>
           </div>
@@ -528,11 +489,6 @@ export default function GroupSessionDetail({
                   key={rNum}
                   onClick={() => {
                     setCurrentRound(rNum);
-                    // Find first unlogged exercise in that round, or default to 0
-                    const unloggedIdx = sessionExercises.findIndex(se => 
-                      !sets.some(s => s.session_exercise_id === se.id && s.round_number === rNum)
-                    );
-                    setActiveExerciseIndex(unloggedIdx === -1 ? 0 : unloggedIdx);
                   }}
                   className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${
                     isCurrent 
@@ -547,208 +503,191 @@ export default function GroupSessionDetail({
               );
             })}
             <button
+              type="button"
               onClick={() => setTargetRoundsCount(prev => prev + 1)}
-              className="px-2.5 py-1 rounded-lg text-[10px] font-bold border border-dashed border-indigo-300 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/20"
+              className="px-2.5 py-1 rounded-lg text-[10px] font-bold border border-dashed border-indigo-300 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 transition-colors"
             >
-              + Vòng
+              + Round
             </button>
           </div>
 
           {/* Round exercises layout */}
-          <div className="space-y-1.5 mt-2">
+          <div className="space-y-2 mt-2">
             {sessionExercises.map((se, idx) => {
-              const isCurrentEx = idx === activeExerciseIndex;
               const setLogged = sets.find(s => s.session_exercise_id === se.id && s.round_number === currentRound);
+              const inputs = roundInputs[se.id];
 
               return (
                 <div 
                   key={se.id}
-                  onClick={() => setActiveExerciseIndex(idx)}
-                  className={`p-2.5 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
-                    isCurrentEx
-                      ? 'bg-white dark:bg-slate-850 border-indigo-400 dark:border-indigo-600 shadow-sm scale-[1.01]'
-                      : 'bg-slate-50/50 dark:bg-slate-900/40 border-slate-150 dark:border-slate-800/80 opacity-75'
+                  className={`p-3 rounded-2xl border transition-all ${
+                    setLogged
+                      ? 'bg-slate-50/50 dark:bg-slate-900/40 border-slate-150 dark:border-slate-800/80 opacity-70'
+                      : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm'
                   }`}
                 >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <span className={`w-5 h-5 rounded-full text-[10px] font-black flex items-center justify-center ${
-                      setLogged 
-                        ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-600'
-                        : isCurrentEx
-                          ? 'bg-indigo-100 dark:bg-indigo-950 text-indigo-600'
-                          : 'bg-slate-200 dark:bg-slate-800 text-slate-400'
-                    }`}>
-                      {String.fromCharCode(65 + idx)}
-                    </span>
-                    <div className="min-w-0">
-                      <h4 className={`text-xs font-bold truncate ${setLogged ? 'text-slate-400 line-through' : 'text-slate-850 dark:text-slate-150'}`}>
-                        {se.exercise.name}
-                      </h4>
-                      {isCurrentEx && (
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className={`w-5 h-5 rounded-full text-[10px] font-black flex items-center justify-center ${
+                        setLogged 
+                          ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-600'
+                          : 'bg-indigo-100 dark:bg-indigo-950 text-indigo-650'
+                      }`}>
+                        {String.fromCharCode(65 + idx)}
+                      </span>
+                      <div className="min-w-0">
+                        <h4 className={`text-xs font-bold truncate ${setLogged ? 'text-slate-400 line-through' : 'text-slate-850 dark:text-slate-150'}`}>
+                          {se.exercise.name}
+                        </h4>
                         <span className="text-[9px] text-slate-400 font-semibold block">
                           Mục tiêu: {exercisesTargets[se.exercise_id]?.target_sets} sets ×{' '}
                           {se.exercise.measurement_type === 'reps'
                             ? `${exercisesTargets[se.exercise_id]?.target_reps ?? 10} reps`
                             : `${exercisesTargets[se.exercise_id]?.target_time_seconds ?? 60}s`
                           }
+                          {se.exercise.measurement_type === 'reps' && (
+                            se.exercise.is_bodyweight
+                              ? ` @ Bodyweight`
+                              : ` @ ${exercisesTargets[se.exercise_id]?.target_weight ?? 20}kg`
+                          )}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 text-[9px] font-extrabold">
+                      {setLogged ? (
+                        <div className="flex items-center gap-1">
+                          <span className="bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-900/30 flex items-center gap-0.5">
+                            <CheckCircle2 className="w-2.5 h-2.5 fill-emerald-500 text-white" />
+                            <span>
+                              {se.exercise.measurement_type === 'reps'
+                                ? `${setLogged.actual_reps}r`
+                                : `${setLogged.actual_time_seconds}s`
+                              }
+                              {se.exercise.measurement_type === 'reps' && (
+                                se.exercise.is_bodyweight
+                                  ? ` @ +${setLogged.actual_added_weight}kg`
+                                  : ` @ ${setLogged.actual_weight}kg`
+                              )}
+                            </span>
+                          </span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (window.confirm('Bạn có muốn xóa set này không?')) {
+                                deleteSet(setLogged.id);
+                              }
+                            }}
+                            className="p-1 hover:bg-red-50 dark:hover:bg-red-950/20 text-slate-400 hover:text-red-500 rounded-md transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="bg-indigo-50 dark:bg-indigo-950 text-indigo-650 dark:text-indigo-400 px-2 py-0.5 rounded border border-indigo-150 dark:border-indigo-900/30">
+                          Chưa ghi
                         </span>
                       )}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1.5 text-[9px] font-extrabold">
-                    {setLogged ? (
-                      <span className="bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-900/30 flex items-center gap-0.5">
-                        <CheckCircle2 className="w-2.5 h-2.5 fill-emerald-500 text-white" />
-                        <span>
-                          {se.exercise.measurement_type === 'reps'
-                            ? `${setLogged.actual_reps}r`
-                            : `${setLogged.actual_time_seconds}s`
-                          }
-                          {se.exercise.measurement_type === 'reps' && (
-                            se.exercise.is_bodyweight
-                              ? ` @ +${setLogged.actual_added_weight}kg`
-                              : ` @ ${setLogged.actual_weight}kg`
-                          )}
-                        </span>
-                      </span>
-                    ) : isCurrentEx ? (
-                      <span className="bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 px-2 py-0.5 rounded border border-indigo-150 dark:border-indigo-900/30 flex items-center animate-pulse">
-                        <span>Đang tập</span>
-                        <ChevronRight className="w-2.5 h-2.5" />
-                      </span>
-                    ) : (
-                      <span className="text-slate-400 font-semibold px-2 py-0.5">
-                        Chờ
-                      </span>
-                    )}
-                  </div>
+                  {/* Inline inputs for active round exercise if not logged */}
+                  {!setLogged && inputs && (
+                    <div className="mt-2.5 pt-2.5 border-t border-slate-100 dark:border-slate-800/80 grid grid-cols-3 gap-2 items-end">
+                      {se.exercise.measurement_type === 'reps' ? (
+                        <>
+                          <div>
+                            <label className="block text-[9px] text-slate-450 font-bold mb-0.5">Reps</label>
+                            <input
+                              type="number"
+                              value={inputs.reps}
+                              onChange={(e) => {
+                                const newInputs = { ...roundInputs };
+                                newInputs[se.id] = { ...inputs, reps: e.target.value };
+                                setRoundInputs(newInputs);
+                              }}
+                              className="w-full px-2 py-1 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-center font-bold text-xs dark:text-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[9px] text-slate-450 font-bold mb-0.5">
+                              {se.exercise.is_bodyweight ? 'Tạ thêm (+kg)' : 'Tạ (kg)'}
+                            </label>
+                            <input
+                              type="number"
+                              value={se.exercise.is_bodyweight ? inputs.addedWeight : inputs.weight}
+                              onChange={(e) => {
+                                const newInputs = { ...roundInputs };
+                                if (se.exercise.is_bodyweight) {
+                                  newInputs[se.id] = { ...inputs, addedWeight: e.target.value };
+                                } else {
+                                  newInputs[se.id] = { ...inputs, weight: e.target.value };
+                                }
+                                setRoundInputs(newInputs);
+                              }}
+                              className="w-full px-2 py-1 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-center font-bold text-xs dark:text-white"
+                            />
+                          </div>
+                        </>
+                      ) : (
+                        <div className="col-span-2 space-y-1">
+                          <div className="flex justify-between items-center">
+                            <label className="block text-[9px] text-slate-455 font-bold">Thời gian (giây)</label>
+                            <div className="flex gap-1 items-center">
+                              <span className="font-mono text-[10px] font-black text-indigo-650 dark:text-indigo-400">
+                                {Math.floor(setTimer.seconds / 60).toString().padStart(2, '0')}:{(setTimer.seconds % 60).toString().padStart(2, '0')}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (setTimer.state === 'running') {
+                                    setTimer.pause();
+                                    const newInputs = { ...roundInputs };
+                                    newInputs[se.id] = { ...inputs, time: setTimer.seconds.toString() };
+                                    setRoundInputs(newInputs);
+                                  } else {
+                                    const targets = exercisesTargets[se.exercise_id];
+                                    setTimer.reset(targets?.target_time_seconds || 60);
+                                    setTimer.start();
+                                  }
+                                }}
+                                className="px-1.5 py-0.5 bg-indigo-50 dark:bg-indigo-950 text-indigo-600 rounded text-[9px] font-bold"
+                              >
+                                {setTimer.state === 'running' ? 'Pause' : 'Start'}
+                              </button>
+                            </div>
+                          </div>
+                          <input
+                            type="number"
+                            value={inputs.time}
+                            onChange={(e) => {
+                              const newInputs = { ...roundInputs };
+                              newInputs[se.id] = { ...inputs, time: e.target.value };
+                              setRoundInputs(newInputs);
+                            }}
+                            className="w-full px-2 py-1 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg text-center font-bold text-xs dark:text-white"
+                          />
+                        </div>
+                      )}
+                      
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleAddSetForExercise(se);
+                        }}
+                        className="w-full py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-[10px] flex items-center justify-center gap-1 transition-all active:scale-95"
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>Ghi set</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}
           </div>
         </div>
-
-        {/* Active Exercise Input Form Box */}
-        {activeSE && activeEx && (
-          <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-4 rounded-2xl shadow-sm space-y-4">
-            <div className="flex items-center justify-between border-b pb-2 dark:border-slate-800">
-              <h4 className="font-black text-xs text-slate-850 dark:text-white flex items-center gap-1.5">
-                <Dumbbell className="w-4 h-4 text-primary-500" />
-                <span>Ghi nhận: {activeEx.name} (Round {currentRound})</span>
-              </h4>
-              <button
-                onClick={handleSkipExercise}
-                className="text-[10px] text-slate-400 hover:text-red-500 font-bold border border-slate-200 dark:border-slate-700 px-2 py-0.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-              >
-                Bỏ qua
-              </button>
-            </div>
-
-            {/* Time-Based Set Stopwatch */}
-            {activeEx.measurement_type === 'time' && (
-              <div className="bg-slate-50 dark:bg-slate-950 p-3 rounded-xl border border-slate-150 dark:border-slate-850 flex flex-col items-center justify-center space-y-2">
-                <div className="flex items-center gap-2">
-                  <Clock className="w-4.5 h-4.5 text-primary-500" />
-                  <span className="font-mono font-black text-xl text-slate-800 dark:text-slate-200">
-                    {Math.floor(setTimer.seconds / 60).toString().padStart(2, '0')}:{(setTimer.seconds % 60).toString().padStart(2, '0')}
-                  </span>
-                </div>
-                <div className="flex gap-2">
-                  {setTimer.state === 'running' ? (
-                    <button
-                      onClick={() => {
-                        setTimer.pause();
-                        setTimeInput(setTimer.seconds.toString());
-                      }}
-                      className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-bold rounded-lg shadow-sm"
-                    >
-                      Tạm dừng
-                    </button>
-                  ) : (
-                    <button
-                      onClick={setTimer.start}
-                      className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold rounded-lg shadow-sm"
-                    >
-                      {setTimer.state === 'paused' ? 'Tiếp tục' : 'Bắt đầu bấm giờ'}
-                    </button>
-                  )}
-                  <button
-                    onClick={() => {
-                      setTimer.reset();
-                      setTimeInput('');
-                    }}
-                    className="px-3 py-1 bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-350 text-[10px] font-bold rounded-lg"
-                  >
-                    Đặt lại
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Input fields */}
-            <div className="grid grid-cols-2 gap-3">
-              {activeEx.measurement_type === 'reps' ? (
-                <>
-                  <div>
-                    <label className="block text-[10px] text-slate-400 font-bold mb-1">Reps</label>
-                    <input
-                      type="number"
-                      value={repsInput}
-                      onChange={(e) => setRepsInput(e.target.value)}
-                      min={1}
-                      className="w-full px-3 py-2 border border-slate-200 dark:border-slate-750 bg-slate-50 dark:bg-slate-950 rounded-xl text-center font-black dark:text-white"
-                    />
-                  </div>
-
-                  {activeEx.is_bodyweight ? (
-                    <div>
-                      <label className="block text-[10px] text-slate-400 font-bold mb-1">Tạ thêm (+kg)</label>
-                      <input
-                        type="number"
-                        value={addedWeightInput}
-                        onChange={(e) => setAddedWeightInput(e.target.value)}
-                        min={0}
-                        className="w-full px-3 py-2 border border-slate-200 dark:border-slate-750 bg-slate-50 dark:bg-slate-950 rounded-xl text-center font-black dark:text-white"
-                      />
-                    </div>
-                  ) : (
-                    <div>
-                      <label className="block text-[10px] text-slate-400 font-bold mb-1">Tạ (kg)</label>
-                      <input
-                        type="number"
-                        value={weightInput}
-                        onChange={(e) => setWeightInput(e.target.value)}
-                        min={0}
-                        className="w-full px-3 py-2 border border-slate-200 dark:border-slate-750 bg-slate-50 dark:bg-slate-950 rounded-xl text-center font-black dark:text-white"
-                      />
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="col-span-2">
-                  <label className="block text-[10px] text-slate-400 font-bold mb-1">Thời gian (giây)</label>
-                  <input
-                    type="number"
-                    value={timeInput}
-                    onChange={(e) => setTimeInput(e.target.value)}
-                    min={1}
-                    className="w-full px-3 py-2 border border-slate-200 dark:border-slate-750 bg-slate-50 dark:bg-slate-950 rounded-xl text-center font-black dark:text-white text-base"
-                    placeholder="Nhập thủ công hoặc sử dụng bấm giờ ở trên"
-                  />
-                </div>
-              )}
-            </div>
-
-            <button
-              onClick={handleAddSet}
-              className="w-full py-2.5 px-4 bg-primary-600 hover:bg-primary-750 text-white font-bold rounded-xl shadow-md text-xs flex items-center justify-center gap-1.5 transition-transform active:scale-98"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Ghi nhận Set bài {activeExerciseIndex + 1} trong Round {currentRound}</span>
-            </button>
-          </div>
-        )}
 
         {/* History of logged rounds list */}
         <div className="space-y-3.5 mt-2">
