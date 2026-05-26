@@ -167,14 +167,10 @@ export default function MePage() {
   const handleSyncSheets = async () => {
     setIsSyncing(true);
     try {
-      const response = await syncDataToSheets();
-      if (response.ok) {
-        await updateSettings({ last_sync_at: new Date().toISOString() });
-        setToastType('success');
-        setToast('Đồng bộ dữ liệu Google Sheets thành công!');
-      } else {
-        throw new Error('Server returned status: ' + response.status);
-      }
+      await syncDataToSheets();
+      await updateSettings({ last_sync_at: new Date().toISOString() });
+      setToastType('success');
+      setToast('Đã gửi dữ liệu. Mở Google Sheet để kiểm tra.');
       setTimeout(() => setToast(''), 3000);
     } catch (err) {
       console.error(err);
